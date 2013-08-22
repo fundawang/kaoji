@@ -12,6 +12,7 @@ function student_schema() {
 		'description' => t('This table stores the basic information of the student.'),
 		'fields' => array(
 			'uid' => array('type' => 'varchar', 'length' => '9', 'not null' => TRUE),
+			'idcard_type' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
 			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
 			'date_of_birth' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE),
 			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default'=>''),
@@ -24,6 +25,7 @@ function student_schema() {
 		),
 		'indexes' => array(
 			'name' => array('name'),
+			'idcard_type' => array('idcard_type')
 		),
 		'foreign keys' => array(
 			'uid' => array(
@@ -35,4 +37,17 @@ function student_schema() {
 	return $schema;
 }
 
-
+/**
+ * add idcard_type field
+ */
+function student_update_7000() {
+	$idcard_type=array(
+		'type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0,
+	);
+	$index=array(
+		'indexes' => array(
+			'idcard_type' => array('idcard_type')
+		)
+	);
+	db_add_field('students', 'idcard_type', $idcard_type, $index);
+}
