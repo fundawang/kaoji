@@ -1,0 +1,5 @@
+name = Student Basic Info
+description = Allow user to sign up as a new user
+package = Kaoji
+core = 7.x
+version = "7.x-0.1"

@@ -1,0 +1,38 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+*/
+
+/**
+ * Implementation of hook_schema().
+ */
+function student_schema() {
+	$schema['students'] = array(
+		'description' => t('This table stores the basic information of the student.'),
+		'fields' => array(
+			'uid' => array('type' => 'varchar', 'length' => '9', 'not null' => TRUE),
+			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
+			'date_of_birth' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE),
+			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default'=>''),
+			'foreign_name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
+			'picture' => array('type' => 'text', 'size' => 'big', 'not null' => FALSE),
+		),
+		'primary key' => array('uid'),
+		'unique keys' => array(
+			'idcard_number' => array('idcard_number'),
+		),
+		'indexes' => array(
+			'name' => array('name'),
+		),
+		'foreign keys' => array(
+			'uid' => array(
+				'table' => 'users',
+				'columns' => array('uid' => 'uid'),
+			),
+		),
+	);
+	return $schema;
+}
+
+
