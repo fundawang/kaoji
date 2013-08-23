@@ -110,12 +110,13 @@ function student_menu() {
 		'type' => MENU_CALLBACK,
 		'access callback' => 'student_picture_perm',
 		'access arguments'=> array(1,2),
-	);  
+	);
+	return $items;
 }
 
 function student_picture_perm($user,$md5=NULL) {
 	if(!user_view_access($user)) return FALSE;
-	$query=db_select('students','s')->fields('s',array('picture'))->condition('uid', $user->name);
+	$query=db_select('students','s')->fields('s',array('picture'))->condition('uid', $user->uid);
 	$img_tmp=$query->execute()->fetchField();
 	if(substr(md5($img_tmp), 0,4)!=$md5) return FALSE;
 	if($img_tmp)
@@ -234,10 +235,11 @@ function student_user_account_form(&$form, $form_state) {
 		$form['personal']['photo']['#description'] .= t('If you want to change the picture, please upload it here. Otherwise, just leave it blank.');
 	}
 	$form['#validate'][]='student_user_account_form_validate';
+	$form['#submit'][]='student_user_account_form_save';
 }
 
 function student_picture($account) {
-	$query=db_select('students','s')->fields('s',array('picture'))->condition('s.uid',$account->name);
+	$query=db_select('students','s')->fields('s',array('picture'))->condition('s.uid',$account->uid);
 	$img_tmp=$query->execute()->fetchField();
 	if(!$img_tmp) return NULL;
 	$img=imagecreatefromstring(base64_decode($img_tmp));
@@ -265,10 +267,19 @@ function student_user_account_form_validate($form, $form_state) {
 	$user=$form_state['user'];
 	$edit=$form_state['values'];
 
-	if($edit['idcard_type']=='0' && !_student_is_idcardn_validate(trim($edit['idnumber']))) {
+	// 1. Validating idcard number
+	$idnumber=strtoupper(trim($edit['idnumber']));
+	if($edit['idcard_type']=='0' && !_student_is_idcardn_validate($idnumber)) {
 		form_set_error('idnumber', t('The ID Card number you\'ve entered is not valid.'));
+	} else {
+		$query=db_select('students','s')->fields('s')
+			->condition('s.idcard_number',$idnumber)
+			->condition('s.uid',$user->uid,'<>');
+		if($query->execute()->rowCount())
+			form_set_error('idnumber', t('The ID Card number you\'ve entered is occupied by somebody else.'));
 	}
 
+	// 2. Validating birth date
 	$datestr=sprintf("%04d%02d%02d",$edit['dateofbirth']['year'], $edit['dateofbirth']['month'], $edit['dateofbirth']['day']);
 	if(_student_is_date_validate($datestr)) {
 		$date=new DateTime();
@@ -277,6 +288,41 @@ function student_user_account_form_validate($form, $form_state) {
 			form_set_error('dateofbirth', t('The birth date you\'ve selected is not valid.'));
 	} else
 		form_set_error('dateofbirth', t('The birth date you\'ve selected is not valid.'));
+
+	// 3. Validating photo
+	if($edit['photo']) {
+		$file=file_load($edit['photo']);
+		$errors=file_validate_is_image($file);
+		if(count($errors)!=0) form_set_error('photo', $errors[0]);
+	}
+}
+
+function student_user_account_form_save($form, $form_state) {
+	$user=$form_state['user'];
+	db_merge('students')
+		->key(array('uid' => $user->uid, 'idcard_number' => strtoupper(trim($form_state['values']['idnumber']))))
+		->fields(array(
+			'uid' => $user->uid,
+			'idcard_number' => strtoupper(trim($form_state['values']['idnumber'])),
+			'date_of_birth' => sprintf("%04d%02d%02d",$form_state['values']['dateofbirth']['year'], $form_state['values']['dateofbirth']['month'], $form_state['values']['dateofbirth']['day']),
+			'name' => trim($form_state['values']['truename']),
+			'foreign_name' => trim($form_state['values']['pyname'])
+		))->execute();
+		if($form_state['values']['photo']) {
+			$file=file_load($form_state['values']['photo']);
+			$image=image_load($file->uri);
+			image_save($image, $file->uri.'.jpg');
+			$fd=fopen($file->uri.'.jpg','rb');
+			$data='';
+			while (!feof($fd)) {
+				$data.=fread($fd, 1024);
+			}
+			fclose($fd);
+			file_unmanaged_delete($file->uri.'.jpg');
+			db_update('students')->condition('uid',$user->uid)->fields(array(
+				'picture' => base64_encode($data),
+			))->execute();
+		}
 }
 
 ?>
