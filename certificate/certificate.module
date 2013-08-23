@@ -100,37 +100,50 @@ function certificate_specification_form($form, $form_state) {
 			->execute()->fetchObject();
 	} else $certificate=FALSE;
 
-	$form['addnotice']=array(
-		'#markup' => '<strong>'.($certificate?t('Modify specification'):t('Add specification')).'</strong><div class="inline-element-div">',
+	drupal_add_css(
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }',
+		'inline'
 	);
 
-	$series=array('0'=>t('-- New series --'));
+	$form['addnotice']=array(
+		'#markup' => '<strong>'.($certificate?t('Modify specification'):t('Add specification')).'</strong>',
+	);
+
+	$series=array();
 	$dbo=db_select('certificates','c')->fields('c',array('series'))->groupBy('c.series')->execute();
 	$i=1;
-	$c_series=0;
+	$c_series=1;
 	foreach($dbo as $r) {
 		$series+=array($i=>$r->series);
 		if($certificate&&$r->series==$certificate->series) $c_series=$i;
 		$i++;
 	}
+	$form['series_caption']=array(
+		'#type' => 'item',
+		'#title' => t('Series'),
+		'#suffix' => '<div class="inline-element-div">',
+		'#required' => TRUE,
+	);
 	if($i>1) {
+		$series+=array('0'=>t('-- New series --'));
 		$form['series']=array(
 			'#type' => 'select',
-			'#title' => t('Series'),
 			'#required' => TRUE,
 			'#default_value' => 1,
 			'#options' => $series,
 		);
 		$form['series_input']=array(
 			'#type' => 'textfield',
+			'#title' => t(', in the name of'),
+			'#title_display' => 'before',
 			'#maxlength' => 30,
 			'#size' => 30,
 			'#states' => array(
 				'visible' => array(
-					':input[name="series"]' => array('value' =>'0'),
+					':input[name="series"]' => array('value' =>0),
 				),
 				'required' => array(
-					':input[name="series"]' => array('value' =>'0'),
+					':input[name="series"]' => array('value' =>0),
 				),
 			),
 		);
@@ -248,10 +261,11 @@ function theme_certificate_specification_form($variables) {
 	$form=$variables['form'];
 	$output ='';
 	$output.=drupal_render($form['addnotice']);
+	$output.=drupal_render($form['series_caption']);
 	$output.=drupal_render($form['series']);
 	$output.=drupal_render($form['series_input']);
-	$output.=drupal_render($form['name']);
 	$output.=drupal_render($form['end']);
+	$output.=drupal_render($form['name']);
 	$output.=drupal_render($form['save']);
 	$output.=drupal_render($form['existingnotice']);
 	$rows=array();
