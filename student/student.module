@@ -33,6 +33,55 @@ function _student_get_random_mail_address(){
 }
 
 /**
+* Function that determine whether YYYYMMDD is a valid date
+*/
+function _student_is_date_validate($datestr) {
+	switch (strlen($datestr)) {
+		case 8:
+			$year = substr($datestr,0,4);
+			$month = substr($datestr,4,2);
+			$day = substr($datestr,6,2);
+			return checkdate($month, $day, $year);
+		default: return false;
+	}
+}
+
+/**
+* Function that computes the capthca char of IDCard number.
+*/
+function _student_idc_get_captcha($idcardn) {
+	$idcardn = substr($idcardn, 0, 17);
+	$sum = 0;
+	$weight = array (7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2);
+	for ($i=0; $i<17; $i++) {
+		$sum += substr($idcardn, $i, 1)* $weight[$i];
+	}
+	$captcha = 12 - ($sum % 11);
+	switch ($captcha) {
+		case 10: $captcha = 'X'; break;
+		case 11: $captcha = '0'; break;
+		case 12: $captcha = '1'; break;
+		default: $captcha = sprintf('%d',$captcha);
+	}
+	return $captcha;
+}
+
+function _student_is_idcardn_validate($idcardn) {
+	switch (strlen($idcardn)) {
+		case 18:
+			if (preg_match('/\d{17}[\dX]/', $idcardn) == 0)
+				return false;
+			if (!_student_is_date_validate(substr($idcardn,6,8)))
+				return false;
+			if (_student_idc_get_captcha($idcardn) != substr($idcardn, 17, 1))
+				return false;
+			return true;
+		default: return false;
+	}
+}
+
+
+/**
  * @file
  * Defines the the progress of signup.
  */
@@ -133,11 +182,13 @@ function student_user_account_form(&$form, $form_state) {
 		'#default_value' => $defaults ? $defaults->idcard_number:'',
 		'#maxlength' => 18,
 		'#required' => TRUE,
+		'#attributes' => array('style'=>'text-transform: uppercase; ime-mode: disabled; -webkit-ime-mode: disabled;'),
 	);
 	$form['personal']['dateofbirth'] = array('#type' => 'date',
 		'#title' => t('Your Date of Birth'),
 		'#default_value' => $defaults ? $defaults->date_of_birth:'',
 		'#required' => TRUE,
+		'#element_validate' => array(),
 		'#states' => array(
 			'invisible' => array(
 				':input[name="idcard_type"]' => array('value' =>'0'),
@@ -152,12 +203,14 @@ function student_user_account_form(&$form, $form_state) {
 		'#default_value' => $defaults ? $defaults->name:'',
 		'#maxlength' => 50,
 		'#required' => TRUE,
+		'#attributes' => array('style'=>'ime-mode: enabled; -webkit-ime-mode: enabled;'),
 	);
 	$form['personal']['pyname'] = array('#type' => 'textfield',
 		'#title' => t('Your Name in alphabet'),
 		'#default_value' => $defaults ? $defaults->foreign_name:'',
 		'#maxlength' => 100,
 		'#required' => TRUE,
+		'#attributes' => array('style'=>'text-transform: uppercase; ime-mode: disabled; -webkit-ime-mode: disabled;'),
 	);
 	if($defaults) {
 		$form['personal']['current_photo'] = array(
@@ -211,6 +264,19 @@ function student_picture($account) {
 function student_user_account_form_validate($form, $form_state) {
 	$user=$form_state['user'];
 	$edit=$form_state['values'];
+
+	if($edit['idcard_type']=='0' && !_student_is_idcardn_validate(trim($edit['idnumber']))) {
+		form_set_error('idnumber', t('The ID Card number you\'ve entered is not valid.'));
+	}
+
+	$datestr=sprintf("%04d%02d%02d",$edit['dateofbirth']['year'], $edit['dateofbirth']['month'], $edit['dateofbirth']['day']);
+	if(_student_is_date_validate($datestr)) {
+		$date=new DateTime();
+		$date->setDate($edit['dateofbirth']['year'], $edit['dateofbirth']['month'], $edit['dateofbirth']['day']);
+		if($date >= new DateTime())
+			form_set_error('dateofbirth', t('The birth date you\'ve selected is not valid.'));
+	} else
+		form_set_error('dateofbirth', t('The birth date you\'ve selected is not valid.'));
 }
 
 ?>
