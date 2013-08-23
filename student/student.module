@@ -280,14 +280,17 @@ function student_user_account_form_validate($form, $form_state) {
 	$query=db_select('students','s')->fields('s')
 		->condition('s.idcard_number',$idnumber)
 		->condition('s.uid',$user->uid,'<>');
-	if($query->execute()->rowCount()) 
+	if($query->execute()->rowCount())  {
 		form_set_error('idnumber', t('The ID Card number you\'ve entered is occupied by somebody else.'));
+		return;
+	}
 	else {
 		// 1.2 If not occupied, then check if the number is valid
 		if($edit['idcard_type']=='0')
 			// 1.2.1 Is it a valid idcard number?
 			if(!_student_is_idcardn_validate($idnumber)) {
 				form_set_error('idnumber', t('The ID Card number you\'ve entered is not valid.'));
+				return;
 			} else {
 			// 1.2.2 If valid, is the date too new?
 				$edit['dateofbirth']['year']=substr($idnumber,6,4);
