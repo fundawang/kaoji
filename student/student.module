@@ -165,8 +165,11 @@ function student_user_account_form(&$form, $form_state) {
 	$form['personal'] = array(
 		'#type' => 'fieldset',
 		'#title' => t('Personal information'),
-		'#description' => t('You\'ll need to provide these information when reseting password. When typing alphabet, please use upper case.').'<span class="error"><strong>'.t('Please provide the information of the student here, rather than the parent.').'</strong></span>',
+		'#description' => t('You\'ll need to provide these information when reseting password.'),
 		'#collapsible' => TRUE,
+	);
+	$form['personal']['notice']=array(
+		'#markup' => '<span class="error"><strong>'.t('Please provide the information of the student here, rather than the parent.').'</strong></span>',
 	);
 	$form['personal']['idcard_type'] = array('#type' => 'select',
 		'#title' => t('Your ID Card Type'),
@@ -187,7 +190,11 @@ function student_user_account_form(&$form, $form_state) {
 	);
 	$form['personal']['dateofbirth'] = array('#type' => 'date',
 		'#title' => t('Your Date of Birth'),
-		'#default_value' => $defaults ? $defaults->date_of_birth:'',
+		'#default_value' => $defaults ? array(
+			'year' => substr($defaults->date_of_birth,0,4),
+			'month' => 1*substr($defaults->date_of_birth,4,2),
+			'day' => 1*substr($defaults->date_of_birth,6,2),
+		):array(),
 		'#required' => TRUE,
 		'#element_validate' => array(),
 		'#states' => array(
@@ -269,14 +276,24 @@ function student_user_account_form_validate($form, $form_state) {
 
 	// 1. Validating idcard number
 	$idnumber=strtoupper(trim($edit['idnumber']));
-	if($edit['idcard_type']=='0' && !_student_is_idcardn_validate($idnumber)) {
-		form_set_error('idnumber', t('The ID Card number you\'ve entered is not valid.'));
-	} else {
-		$query=db_select('students','s')->fields('s')
-			->condition('s.idcard_number',$idnumber)
-			->condition('s.uid',$user->uid,'<>');
-		if($query->execute()->rowCount())
-			form_set_error('idnumber', t('The ID Card number you\'ve entered is occupied by somebody else.'));
+	// 1.1 If the idcard number is occupied by any others.
+	$query=db_select('students','s')->fields('s')
+		->condition('s.idcard_number',$idnumber)
+		->condition('s.uid',$user->uid,'<>');
+	if($query->execute()->rowCount()) 
+		form_set_error('idnumber', t('The ID Card number you\'ve entered is occupied by somebody else.'));
+	else {
+		// 1.2 If not occupied, then check if the number is valid
+		if($edit['idcard_type']=='0')
+			// 1.2.1 Is it a valid idcard number?
+			if(!_student_is_idcardn_validate($idnumber)) {
+				form_set_error('idnumber', t('The ID Card number you\'ve entered is not valid.'));
+			} else {
+			// 1.2.2 If valid, is the date too new?
+				$edit['dateofbirth']['year']=substr($idnumber,6,4);
+				$edit['dateofbirth']['month']=substr($idnumber,10,2);
+				$edit['dateofbirth']['day']=substr($idnumber,12,2);
+			}
 	}
 
 	// 2. Validating birth date
@@ -303,8 +320,11 @@ function student_user_account_form_save($form, $form_state) {
 		->key(array('uid' => $user->uid, 'idcard_number' => strtoupper(trim($form_state['values']['idnumber']))))
 		->fields(array(
 			'uid' => $user->uid,
+			'idcard_type' => $form_state['values']['idcard_type'],
 			'idcard_number' => strtoupper(trim($form_state['values']['idnumber'])),
-			'date_of_birth' => sprintf("%04d%02d%02d",$form_state['values']['dateofbirth']['year'], $form_state['values']['dateofbirth']['month'], $form_state['values']['dateofbirth']['day']),
+			'date_of_birth' => $form_state['values']['idcard_type']=='0'?
+				substr(strtoupper(trim($form_state['values']['idnumber'])), 6, 8):
+				sprintf("%04d%02d%02d",$form_state['values']['dateofbirth']['year'], $form_state['values']['dateofbirth']['month'], $form_state['values']['dateofbirth']['day']),
 			'name' => trim($form_state['values']['truename']),
 			'foreign_name' => trim($form_state['values']['pyname'])
 		))->execute();
