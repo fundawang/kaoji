@@ -37,6 +37,17 @@ function certificate_permission() {
 }
 
 /**
+ * Implementation of hook_theme().
+ */
+function certificate_theme() {
+	return array(
+		'certificate_specification_form' => array(
+			'render element' => 'form', 
+		),
+	);
+}
+
+/**
  * Implementation of hook_menu().
  */
 function certificate_menu() {
@@ -81,10 +92,11 @@ function certificate_blocklist() {
 /**
  * Callback function of 'certificate/specification'
  */
-function certificate_specification_form($form, $form_states) {
+function certificate_specification_form($form, $form_state) {
 	$form=array();
-	if(isset($form_states['rebuild_info']['cid'])) {
-		$certificate=db_query('certificates','c')->fields('c')->condition('c.cid',$form_states['rebuild_info']['cid'])
+	if(isset($form_state['storage']['cid'])) {
+		$form['cid']=array('#type'=>'hidden','#value'=>$form_state['storage']['cid']);
+		$certificate=db_select('certificates','c')->fields('c')->condition('c.cid',$form_state['storage']['cid'])
 			->execute()->fetchObject();
 	} else $certificate=FALSE;
 
@@ -92,11 +104,13 @@ function certificate_specification_form($form, $form_states) {
 		'#markup' => '<strong>'.($certificate?t('Modify specification'):t('Add specification')).'</strong><div class="inline-element-div">',
 	);
 
-	$series=array('0'=>t('-- New series --'), '-1'=>'11');
+	$series=array('0'=>t('-- New series --'));
 	$dbo=db_select('certificates','c')->fields('c',array('series'))->groupBy('c.series')->execute();
 	$i=1;
+	$c_series=0;
 	foreach($dbo as $r) {
 		$series+=array($i=>$r->series);
+		if($certificate&&$r->series==$certificate->series) $c_series=$i;
 		$i++;
 	}
 	if($i>1) {
@@ -104,7 +118,7 @@ function certificate_specification_form($form, $form_states) {
 			'#type' => 'select',
 			'#title' => t('Series'),
 			'#required' => TRUE,
-			'#default_value' => '0',
+			'#default_value' => 1,
 			'#options' => $series,
 		);
 		$form['series_input']=array(
@@ -113,6 +127,9 @@ function certificate_specification_form($form, $form_states) {
 			'#size' => 30,
 			'#states' => array(
 				'visible' => array(
+					':input[name="series"]' => array('value' =>'0'),
+				),
+				'required' => array(
 					':input[name="series"]' => array('value' =>'0'),
 				),
 			),
@@ -154,24 +171,123 @@ function certificate_specification_form($form, $form_states) {
 	$form['end']=array(
 		'#markup' => '</div>'
 	);
+	$form['c_series']=array('#type'=>'hidden','#value'=>$c_series);
+	$form['c_name']=array('#type'=>'hidden','#value'=>$certificate?$certificate->name:'');
+	drupal_add_js(
+		'jQuery(document).ready(function(){'.
+			//'alert(jQuery(":input[name=\"c_series\"]").val());'.
+			'jQuery("#edit-series").val(jQuery(":input[name=\"c_series\"]").val());'.
+			'jQuery("#edit-name").val(jQuery(":input[name=\"c_name\"]").val());'.
+			'jQuery("#edit-series").change();'.
+			'});'. // end document ready function()
+			'',
+		'inline'
+	);
 	$form['save']=array(
 		'#type' => 'submit',
+		'#name' => 'save',
 		'#value' => t('Save'),
 	);
+
+	$form['existingnotice']=array(
+		'#markup' => '<div style="margin-top: 20px;"><strong>'.t('Existing specifications').'</strong></div>',
+	);
+	$header=array(
+		'series' => array('data' => t('Series'), 'field'=> 'series'),
+		'name' => array('data' => t('Specification'), 'field'=> 'name'),
+	);
+	
+	$query=db_select('certificates','c')->fields('c')
+		->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);
+	$result=$query->execute();
+	$form['existing']=array('#type'=>'fieldset');
+
+	foreach($result as $r) {
+		$form['existing']['cid'.$r->cid]=array('#type'=>'hidden','#value'=>$r->cid);
+		$form['existing']['series'.$r->cid]=array('#markup'=>$r->series);
+		$form['existing']['name'.$r->cid]=array('#markup'=>$r->name);
+		$form['existing']['modify'.$r->cid]=array('#type'=>'submit','#submit'=>array('certificate_specification_form_modify_submit'),'#limit_validation_errors'=>array(),'#name'=>'modify_'.$r->cid,'#value'=>t('Modify'));
+		$form['existing']['delete'.$r->cid]=array('#type'=>'submit','#submit'=>array('certificate_specification_form_delete_submit'),'#limit_validation_errors'=>array(),'#name'=>'delete_'.$r->cid,'#value'=>t('Delete'));
+	}
 	return $form;
 }
 
-function certificate_specification_form_submit($form, &$form_states) {
+function certificate_specification_form_submit($form, $form_state) {
 	// if cid is not set, then add new specification
-	if(!isset($form_states['rebuild_info']['cid'])) {
+	if(!isset($form_state['storage']['cid'])) {
 		$query=db_select('certificates','c');
 		$query->addExpression('MAX(c.cid)','num');
 		$i=$query->execute()->fetchField();
 		db_insert('certificates')->fields(array(
 			'cid' => $i+1,
-			'series' => $form_states['values']['series_input'],
-			'name' => $form_states['values']['name'],
+			'series' => $form_state['values']['series_input'],
+			'name' => $form_state['values']['name'],
 		))->execute();
+		drupal_set_message(t('Specification added.'));
+	} else {
+		db_update('certificates')->fields(array(
+			'series' => $form_state['values']['series_input'],
+			'name' => $form_state['values']['name'],
+		))->condition('cid',$form_state['storage']['cid'])->execute();
+		drupal_set_message(t('Specification Saved.'));
 	}
 }
+
+function certificate_specification_form_modify_submit($form, &$form_state) {
+	$form_state['rebuild'] = TRUE;
+	$form_state['storage']['cid']=substr($form_state['triggering_element']['#name'],7);
+	$form_state['values']['name']='3333';
+}
+
+function certificate_specification_form_delete_submit($form, $form_state) {
+	db_delete('certificates')->condition('cid',substr($form_state['triggering_element']['#name'],7))->execute();
+	drupal_set_message(t('Specification Deleted.'));
+}
+
+function theme_certificate_specification_form($variables) {
+	$form=$variables['form'];
+	$output ='';
+	$output.=drupal_render($form['addnotice']);
+	$output.=drupal_render($form['series']);
+	$output.=drupal_render($form['series_input']);
+	$output.=drupal_render($form['name']);
+	$output.=drupal_render($form['end']);
+	$output.=drupal_render($form['save']);
+	$output.=drupal_render($form['existingnotice']);
+	$rows=array();
+	foreach($form['existing'] as $key=>$val) {
+		//var_dump($key);
+		if(substr($key,0,3)!='cid') continue;
+		$cid=substr($key,3);
+		if(isset($form['cid']) && $form['cid']['#value']==$cid) {
+			$rows[]=array(
+				'data'=>array(
+					drupal_render($form['existing']['series'.$cid]),
+					drupal_render($form['existing']['name'.$cid]),
+					t('Now Editing'),
+				),
+				'class'=>array('rowselected'),
+			);
+			unset($form['existing']['modify'.$cid]);
+			unset($form['existing']['delete'.$cid]);
+		} else {
+			$rows[]=array(
+				drupal_render($form['existing']['series'.$cid]),
+				drupal_render($form['existing']['name'.$cid]),
+				drupal_render($form['existing']['modify'.$cid]).drupal_render($form['existing']['delete'.$cid]),
+			);
+		}
+	}
+	$header=array(
+		'series' => array('data' => t('Series'), 'field'=> 'series'),
+		'name' => array('data' => t('Specification'), 'field'=> 'name'),
+		'modify' => array('data' => t('Operations')),
+	);
+	$output.=theme('table', array('header'=>$header, 'rows'=>$rows, 'empty'=>t('No existing specifications.')));
+	unset($form['existing']);
+	$output.=drupal_render_children($form);
+	$output .= theme('pager');
+	return $output;
+}
+
 ?>
