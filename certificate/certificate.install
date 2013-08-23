@@ -1,0 +1,28 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+*/
+
+/**
+ * Implementation of hook_schema().
+ */
+function certificate_schema() {
+	$schema['certificates'] = array(
+		'description' => t('This table stores the basic information of the certificate types.'),
+		'fields' => array(
+			'cid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
+			'series' => array('type' => 'varchar', 'length' => '30', 'not null' => FALSE),
+			'name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
+		),
+		'primary key' => array('cid'),
+		'unique keys' => array(
+			'series_name' => array('series','name'),
+		),
+		'indexes' => array(
+			'series' => array('series'),
+			'name' => array('name')
+		),
+	);
+	return $schema;
+}

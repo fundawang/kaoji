@@ -1,0 +1,177 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+ */
+
+/**
+ * @file
+ * Defines the basic information of certificate.
+ */
+ 
+/**
+ * Implementation of hook_help().
+ */
+function certificate_help($path, $arg) {
+	switch ($path) {
+		case 'certificate':
+			$output = t('You may administrate various basic information of certificates via following feature.');
+			break;
+		case 'certificate/specification':
+			$output = t('In this page, you could modify or add new certificate specification.');
+			break;
+	}
+	if (isset($output))
+		return $output;
+}
+
+/**
+ * Implementation of hook_permission().
+ */
+function certificate_permission() {
+	return array(
+		'admin certificates' => array(
+			'title' => t('Administrate certificates types'),
+		),
+	);
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function certificate_menu() {
+	$items=array();
+	$items['certificate']=array(
+		'title' => 'Certificates Management',
+		'description' => "Manage the certificates",
+		'page callback' => 'certificate_blocklist',
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates'),
+		'expanded' => TRUE,
+	);
+	$items['certificate/specification']=array(
+		'title' => 'Specification Management',
+		'description' => "Manage the specifications",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('certificate_specification_form'),
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates'),
+		'expanded' => TRUE,
+	);
+	return $items;
+}
+
+/**
+ * Provide a single block from the administration menu as a page.
+ * This function is often a destination for these blocks.
+ * For example, 'admin/content/types' needs to have a destination to be valid
+ * in the Drupal menu system, but too much information there might be
+ * hidden, so we supply the contents of the block.
+ *
+ * @return
+ *   The output HTML.
+ */
+function certificate_blocklist() {
+	$item = menu_get_item();
+	$content = system_admin_menu_block($item);
+
+	return theme('admin_block_content', array('content' => $content));
+}
+
+/**
+ * Callback function of 'certificate/specification'
+ */
+function certificate_specification_form($form, $form_states) {
+	$form=array();
+	if(isset($form_states['rebuild_info']['cid'])) {
+		$certificate=db_query('certificates','c')->fields('c')->condition('c.cid',$form_states['rebuild_info']['cid'])
+			->execute()->fetchObject();
+	} else $certificate=FALSE;
+
+	$form['addnotice']=array(
+		'#markup' => '<strong>'.($certificate?t('Modify specification'):t('Add specification')).'</strong><div class="inline-element-div">',
+	);
+
+	$series=array('0'=>t('-- New series --'), '-1'=>'11');
+	$dbo=db_select('certificates','c')->fields('c',array('series'))->groupBy('c.series')->execute();
+	$i=1;
+	foreach($dbo as $r) {
+		$series+=array($i=>$r->series);
+		$i++;
+	}
+	if($i>1) {
+		$form['series']=array(
+			'#type' => 'select',
+			'#title' => t('Series'),
+			'#required' => TRUE,
+			'#default_value' => '0',
+			'#options' => $series,
+		);
+		$form['series_input']=array(
+			'#type' => 'textfield',
+			'#maxlength' => 30,
+			'#size' => 30,
+			'#states' => array(
+				'visible' => array(
+					':input[name="series"]' => array('value' =>'0'),
+				),
+			),
+		);
+		drupal_add_js(
+			'jQuery(document).ready(function(){'.
+				'jQuery("#edit-series").change(function(){ '.
+				'if(jQuery("#edit-series").val()==0) {'.
+					'jQuery("#edit-series-input").val(""); }'.
+				'else {'.
+					'jQuery("#edit-series-input").val(jQuery("#edit-series").find("option:selected").text());'.
+					'}'.
+				'});'. // end series.change function()
+				'});'. // end document ready function()
+				'',
+			'inline'
+		);
+	}
+	else {
+		$form['series']=array(
+			'#type' => 'hidden',
+			'#value' => '0',
+		);
+		$form['series_input']=array(
+			'#type' => 'textfield',
+			'#title' => t('Series Name'),
+			'#maxlength' => 30,
+			'#size' => 40,
+			'#required' => TRUE,
+		);
+	}
+	$form['name']=array(
+		'#type' => 'textfield',
+		'#title' => t('Specification Name'),
+		'#required' => TRUE,
+		'#maxlength' => 50,
+		'#size' => 40,
+	);
+	$form['end']=array(
+		'#markup' => '</div>'
+	);
+	$form['save']=array(
+		'#type' => 'submit',
+		'#value' => t('Save'),
+	);
+	return $form;
+}
+
+function certificate_specification_form_submit($form, &$form_states) {
+	// if cid is not set, then add new specification
+	if(!isset($form_states['rebuild_info']['cid'])) {
+		$query=db_select('certificates','c');
+		$query->addExpression('MAX(c.cid)','num');
+		$i=$query->execute()->fetchField();
+		db_insert('certificates')->fields(array(
+			'cid' => $i+1,
+			'series' => $form_states['values']['series_input'],
+			'name' => $form_states['values']['name'],
+		))->execute();
+	}
+}
+?>
