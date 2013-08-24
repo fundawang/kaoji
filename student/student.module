@@ -207,6 +207,20 @@ function student_user_account_form(&$form, $form_state) {
 			)
 		),
 	);
+	$form['personal']['gender'] = array('#type' => 'radios',
+		'#title' => t('Your Gender'),
+		'#default_value' => $defaults ? $defaults->gender: '1',
+		'#options' => array('1'=>t('Male'), '2'=>t('Female')),
+		'#required' => TRUE,
+		'#states' => array(
+			'invisible' => array(
+				':input[name="idcard_type"]' => array('value' =>'0'),
+			),
+			'optional' => array(
+				':input[name="idcard_type"]' => array('value' =>'0'),
+			)
+		),
+	);
 	$form['personal']['truename'] = array('#type' => 'textfield',
 		'#title' => t('Your Name'),
 		'#default_value' => $defaults ? $defaults->name:'',
@@ -329,6 +343,9 @@ function student_user_account_form_save($form, $form_state) {
 			'date_of_birth' => $form_state['values']['idcard_type']=='0'?
 				substr(strtoupper(trim($form_state['values']['idnumber'])), 6, 8):
 				sprintf("%04d%02d%02d",$form_state['values']['dateofbirth']['year'], $form_state['values']['dateofbirth']['month'], $form_state['values']['dateofbirth']['day']),
+			'gender' => $form_state['values']['idcard_type']=='0'?
+				2-(substr(trim($form_state['values']['idnumber']),16,1) % 2):
+				$form_state['values']['gender'],
 			'name' => trim($form_state['values']['truename']),
 			'foreign_name' => trim($form_state['values']['pyname'])
 		))->execute();

@@ -15,7 +15,8 @@ function student_schema() {
 			'idcard_type' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
 			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
 			'date_of_birth' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE),
-			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default'=>''),
+			'gender' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
 			'foreign_name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
 			'picture' => array('type' => 'text', 'size' => 'big', 'not null' => FALSE),
 		),
@@ -25,6 +26,7 @@ function student_schema() {
 		),
 		'indexes' => array(
 			'name' => array('name'),
+			'gender' => array('gender'),
 			'idcard_type' => array('idcard_type')
 		),
 		'foreign keys' => array(
@@ -50,4 +52,27 @@ function student_update_7000() {
 		)
 	);
 	db_add_field('students', 'idcard_type', $idcard_type, $index);
+}
+
+/**
+ * add gender field
+ */
+function student_update_7001() {
+	$gender=array(
+		'type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0,
+	);
+	$index=array(
+		'indexes' => array(
+			'gender' => array('gender')
+		)
+	);
+	db_add_field('students', 'gender', $gender, $index);
+	db_update('students')->fields(array('gender'=>0))->condition('idcard_type',0,'<>')->execute();
+	$query=db_select('students','s')->fields('s',array('uid','idcard_number'))->condition('idcard_type',0);
+	$dbo=$query->execute();
+	foreach($dbo as $r) {
+		db_update('students')->condition('uid',$r->uid)->fields(array(
+			'gender' => 2-(substr($r->idcard_number,16,1) % 2),
+		))->execute();
+	}
 }
