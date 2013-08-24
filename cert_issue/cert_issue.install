@@ -1,0 +1,50 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+*/
+
+/**
+ * Implementation of hook_schema().
+ */
+function cert_issue_schema() {
+	$schema['certificates_issues'] = array(
+		'description' => t('This table stores the issued certificates of the student.'),
+		'fields' => array(
+			'ciid' => array('type' => 'serial', 'not null' => TRUE),
+			'coid' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+			'certid' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE, 'default' => ''),
+			'ticket_number' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
+			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
+			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
+			'date_of_birth' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE, 'default' => ''),
+			'foreign_name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
+			'gender' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+			'picture' => array('type' => 'text', 'size' => 'big', 'not null' => FALSE),
+			'issuedate' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE, 'default' => ''),
+			'claimedby' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+			'status' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+		),
+		'primary key' => array('ciid'),
+		'unique keys' => array(
+			'certid' => array('certid'),
+		),
+		'indexes' => array(
+			'name' => array('name'),
+			'coid' => array('coid'),
+			'ticket_number' => array('ticket_number'),
+			'idcard_number' => array('idcard_number'),
+			'issuedate' => array('issuedate'),
+			'claimedby' => array('claimedby'),
+			'status' => array('status'),
+		),
+		'foreign keys' => array(
+			'coid' => array(
+				'table' => 'certificates_operations',
+				'columns' => array('coid' => 'coid'),
+			),
+		),
+	);
+	return $schema;
+}
+

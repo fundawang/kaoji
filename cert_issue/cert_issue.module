@@ -1,0 +1,62 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+*/
+
+/**
+ * Implementation of hook_permission().
+ */
+function cert_issue_permission() {
+	return array(
+		'preload certificates' => array(
+			'title' => t('Upload Massive certificates already issued'),
+		),
+		'claim certificates' => array(
+			'title' => t('Claim already issued certificates'),
+		),
+	);
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function cert_issue_menu() {
+	$items=array();
+	$items['certificate/massiveupload'] = array(
+		'title' => 'Upload Massive certificates already issued',
+		'weight' => 3,
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('cert_issue_massiveupload_form'),
+		'access callback' => 'user_access',
+		'access arguments'=> array('preload certificates'),
+	);
+	$items['user/claim'] = array(
+		'title' => 'Claim already issued certificates',
+		'menu_name' => 'user-menu',
+		'plid' => '0',
+		'weight' => -9,
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('cert_issue_user_claim_form'),
+		'access callback' => 'cert_issue_user_claim_access',
+		'access arguments'=> array(1),
+	);
+	return $items;
+}
+
+function cert_issue_user_claim_access($user) {
+	$user=$GLOBALS['user'];
+	if(isset($user->uid) && $user->uid) {
+		return db_select('students','s')->fields('s')->condition('s.uid',$user->uid)->countQuery()->execute()->fetchField();
+	} else return FALSE;
+}
+
+function cert_issue_massiveupload_form($form, $form_state) {
+	return array();
+}
+
+function cert_issue_user_claim_form($form, $form_state) {
+	$user=$GLOBALS['user'];
+	return array();
+}
+?>
