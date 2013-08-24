@@ -36,9 +36,6 @@ function certificate_permission() {
 		'admin certificates' => array(
 			'title' => t('Administrate certificates types'),
 		),
-		'preload certificates' => array(
-			'title' => t('Preload existing certificates'),
-		),
 	);
 }
 
@@ -75,14 +72,14 @@ function certificate_menu() {
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin certificates'),
 	);
-	$items['certificate/preload']=array(
-		'title' => 'Preload certificates',
-		'weight' => 10,
-		'description' => "Preload the certificates",
+	$items['certificate/operations']=array(
+		'title' => 'Operations Management',
+		'weight' => 2,
+		'description' => "Manage the operations",
 		'page callback' => 'drupal_get_form',
-		'page arguments' => array('certificate_preload_form'),
+		'page arguments' => array('certificate_operations_form'),
 		'access callback' => 'user_access',
-		'access arguments'=> array('preload certificates'),
+		'access arguments'=> array('admin certificates'),
 	);
 	return $items;
 }
@@ -319,12 +316,7 @@ function theme_certificate_specification_form($variables) {
 	return $output;
 }
 
-/**
- * Callback function of 'certificate/preload'
- */
-function certificate_preload_form($form, $form_state) {
-	$form=array();
-	return $form;
+function certificate_operations_form($form, $form_state) {
 }
 
 ?>
