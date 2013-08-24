@@ -237,6 +237,7 @@ function student_user_account_form(&$form, $form_state) {
 	);
 	$form['personal']['pyname'] = array('#type' => 'textfield',
 		'#title' => t('Your Name in alphabet'),
+		'#description' => t('Only Half-width alphabet is allowed.'),
 		'#default_value' => $defaults ? $defaults->foreign_name:'',
 		'#maxlength' => 100,
 		'#required' => TRUE,
@@ -331,7 +332,11 @@ function student_user_account_form_validate($form, $form_state) {
 	} else
 		form_set_error('dateofbirth', t('The birth date you\'ve selected is not valid.'));
 
-	// 3. Validating photo
+	// 3. Validating pyname
+	if(!preg_match('/^[A-Z ]+$/', strtoupper(trim($edit['pyname'])))) {
+		form_set_error('pyname', t('The alphabet name you\'ve entered is not valid.'));
+	}
+	// 4. Validating photo
 	if($edit['photo']) {
 		$file=file_load($edit['photo']);
 		$errors=file_validate_is_image($file);
