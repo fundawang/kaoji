@@ -92,12 +92,6 @@ function _student_is_idcardn_validate($idcardn) {
 function student_help($path, $arg) {
 }
 
-/**
- * Implementation of hook_permission
- */
-function student_permission() {
-}
-
 
 /**
  * Implementation of hook_menu().
