@@ -40,8 +40,8 @@ function certificate_schema() {
 	$schema['certificates_operations'] = array(
 		'description' => t('This table stores the operation information of the certificates.'),
 		'fields' => array(
-			'coid' => array('type' => 'varchar', 'length' => '6', 'not null' => TRUE, 'default' => ''),
-			'oid' => array('type' => 'varchar', 'length' => '30', 'not null' => FALSE),
+			'coid' => array('type' => 'serial', 'not null' => TRUE),
+			'oid' => array('type' => 'varchar', 'length' => '6', 'not null' => FALSE),
 			'cid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
 			'visible' => array('type' => 'int', 'size'=>'tiny', 'default' => 0),
 			'status' => array('type' => 'int', 'size'=>'tiny', 'default' => 0),
@@ -75,4 +75,13 @@ function certificate_update_7000() {
 	$tables=array('operations','certificates_operations');
 	foreach($tables as $table)
 		db_create_table($table, $schemas[$table]);
+}
+
+/**
+ * tweak the field size of coid and oid.
+ */
+function certificate_update_7001() {
+	db_drop_primary_key('certificates_operations');
+	db_change_field('certificates_operations', 'coid', 'coid', array('type' => 'serial', 'not null' => TRUE), array('primary key' => array('coid')));
+	db_change_field('certificates_operations', 'oid', 'oid', array('type' => 'varchar', 'length' => '6', 'not null' => FALSE));
 }
