@@ -235,6 +235,27 @@ function student_user_account_form(&$form, $form_state) {
 		'#required' => TRUE,
 		'#attributes' => array('style'=>'ime-mode: enabled; -webkit-ime-mode: enabled;'),
 	);
+
+	$form['personal']['haveexname'] = array('#type' => 'checkbox',
+		'#title' => t('I have exname'),
+		'#default_value' => $defaults ? !empty($defaults->exname):FALSE,
+		'#description' => t('If you do not have exname, please uncheck the above checkbox.'),
+	);
+	$form['personal']['exname'] = array('#type' => 'textfield',
+		'#title' => t('Your Ex Name'),
+		'#default_value' => $defaults ? $defaults->exname:'',
+		'#maxlength' => 50,
+		'#attributes' => array('style'=>'ime-mode: enabled; -webkit-ime-mode: enabled;'),
+		'#states' => array(
+			'visible' => array(
+				':input[name="haveexname"]' => array('checked' =>TRUE),
+			),
+			'required' => array(
+				':input[name="haveexname"]' => array('checked' =>TRUE),
+			)
+		),
+	);
+
 	$form['personal']['pyname'] = array('#type' => 'textfield',
 		'#title' => t('Your Name in alphabet'),
 		'#description' => t('Only Half-width alphabet is allowed.'),
@@ -309,7 +330,7 @@ function student_user_account_form_validate($form, $form_state) {
 	}
 	else {
 		// 1.2 If not occupied, then check if the number is valid
-		if($edit['idcard_type']=='0')
+		if($edit['idcard_type']=='0') {
 			// 1.2.1 Is it a valid idcard number?
 			if(!_student_is_idcardn_validate($idnumber)) {
 				form_set_error('idnumber', t('The ID Card number you\'ve entered is not valid.'));
@@ -320,7 +341,18 @@ function student_user_account_form_validate($form, $form_state) {
 				$edit['dateofbirth']['month']=substr($idnumber,10,2);
 				$edit['dateofbirth']['day']=substr($idnumber,12,2);
 			}
+		} else {
+			if(empty($idnumber)) {
+				form_set_error('idnumber', t('!name field is required.', array('!name'=>t('Your Name'))));
+			}
+		}
 	}
+    
+    $exname=trim($edit['exname']);
+	if($edit['haveexname'] && empty($exname)) {
+		form_set_error('exname', t('!name field is required.', array('!name'=>t('Your Ex Name'))));
+	}
+		
 
 	// 2. Validating birth date
 	$datestr=sprintf("%04d%02d%02d",$edit['dateofbirth']['year'], $edit['dateofbirth']['month'], $edit['dateofbirth']['day']);
@@ -359,6 +391,7 @@ function student_user_account_form_save($form, $form_state) {
 				2-(substr(trim($form_state['values']['idnumber']),16,1) % 2):
 				$form_state['values']['gender'],
 			'name' => trim($form_state['values']['truename']),
+			'exname' => $form_state['values']['haveexname']?trim($form_state['values']['exname']):'',
 			'foreign_name' => trim($form_state['values']['pyname'])
 		))->execute();
 		if($form_state['values']['photo']) {
