@@ -15,10 +15,13 @@
 function certificate_help($path, $arg) {
 	switch ($path) {
 		case 'certificate':
-			$output = t('You may administrate various basic information of certificates via following feature.');
+			$output = t('You may administrate various basic information of certificates via following features.');
 			break;
 		case 'certificate/specification':
 			$output = t('In this page, you could modify or add new certificate specification.');
+			break;
+		case 'certificate/preload':
+			$output = t('In this page, you could preload certificates already issued, for students to claim.');
 			break;
 	}
 	if (isset($output))
@@ -32,6 +35,9 @@ function certificate_permission() {
 	return array(
 		'admin certificates' => array(
 			'title' => t('Administrate certificates types'),
+		),
+		'preload certificates' => array(
+			'title' => t('Preload existing certificates'),
 		),
 	);
 }
@@ -62,12 +68,21 @@ function certificate_menu() {
 	);
 	$items['certificate/specification']=array(
 		'title' => 'Specification Management',
+		'weight' => '1',
 		'description' => "Manage the specifications",
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('certificate_specification_form'),
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin certificates'),
-		'expanded' => TRUE,
+	);
+	$items['certificate/preload']=array(
+		'title' => 'Preload certificates',
+		'weight' => 10,
+		'description' => "Preload the certificates",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('certificate_preload_form'),
+		'access callback' => 'user_access',
+		'access arguments'=> array('preload certificates'),
 	);
 	return $items;
 }
@@ -302,6 +317,14 @@ function theme_certificate_specification_form($variables) {
 	$output.=drupal_render_children($form);
 	$output .= theme('pager');
 	return $output;
+}
+
+/**
+ * Callback function of 'certificate/preload'
+ */
+function certificate_preload_form($form, $form_state) {
+	$form=array();
+	return $form;
 }
 
 ?>

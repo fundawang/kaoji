@@ -2,4 +2,4 @@ name = Certificate Base info
 description = Provides default schema of certificates
 package = Kaoji
 core = 7.x
-version = "7.x-0.1"
+version = "7.x-0.2"

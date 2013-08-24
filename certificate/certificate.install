@@ -24,5 +24,55 @@ function certificate_schema() {
 			'name' => array('name')
 		),
 	);
+	$schema['operations'] = array(
+		'description' => t('This table stores the operations information.'),
+		'fields' => array(
+			'oid' => array('type' => 'varchar', 'length' => '6', 'not null' => TRUE, 'default' => ''),
+			'year' => array('type' => 'varchar', 'length' => '4', 'not null' => TRUE, 'default' => ''),
+			'name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE, 'default' => ''),
+		),
+		'primary key' => array('oid'),
+		'indexes' => array(
+			'year' => array('year'),
+			'name' => array('name')
+		),
+	);
+	$schema['certificates_operations'] = array(
+		'description' => t('This table stores the operation information of the certificates.'),
+		'fields' => array(
+			'coid' => array('type' => 'varchar', 'length' => '6', 'not null' => TRUE, 'default' => ''),
+			'oid' => array('type' => 'varchar', 'length' => '30', 'not null' => FALSE),
+			'cid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
+			'visible' => array('type' => 'int', 'size'=>'tiny', 'default' => 0),
+			'status' => array('type' => 'int', 'size'=>'tiny', 'default' => 0),
+		),
+		'primary key' => array('coid'),
+		'indexes' => array(
+			'cid' => array('cid'),
+			'oid' => array('oid'),
+			'visible' => array('visible'),
+			'status' => array('status'),
+		),
+		'foreign keys' => array(
+			'oid' => array(
+				'table' => 'operations',
+				'columns' => array('oid' => 'oid'),
+			),
+			'cid' => array(
+				'table' => 'certificates',
+				'columns' => array('cid' => 'cid'),
+			),
+		),
+	);
 	return $schema;
+}
+
+/**
+ * Add operations and certificates_operations table.
+ */
+function certificate_update_7000() {
+	$schemas=drupal_get_schema_unprocessed('certificate');
+	$tables=array('operations','certificates_operations');
+	foreach($tables as $table)
+		db_create_table($table, $schemas[$table]);
 }
