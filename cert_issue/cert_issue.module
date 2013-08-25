@@ -16,6 +16,25 @@ function _cert_issue_get_status_text($status) {
 }
 
 /**
+ * Implementation of hook_help().
+ */
+function cert_issue_help($path, $arg) {
+	switch ($path) {
+		case 'user/certs':
+			$output = t('List my certificates, clamed and issued.');
+			break;
+		case 'user/claim':
+			$output = t('Claim system preloaded certificates.');
+			break;
+		case 'certificate/massiveupload': 
+			$output = t('If you want to massive upload the certificates which are already issued, please use this feature.');
+			break;
+	}
+	if (isset($output))
+		return $output;
+}
+
+/**
  * Implementation of hook_permission().
  */
 function cert_issue_permission() {
@@ -62,8 +81,53 @@ function cert_issue_menu() {
 	return $items;
 }
 
-function cert_issue_massiveupload_form($form, $form_state) {
+function _cert_issue_is_file_spreadsheet($file) {
+	if(preg_match('/\.xlsx{0,1}$/i', $file->filename)) return array();
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	if(PHPExcel_IOFactory::identify($file->uri)=='CSV')
+		return array(t('It is not a valid spreadsheet file.'));
 	return array();
+}
+
+function cert_issue_massiveupload_form($form, $form_state) {
+	$form=array();
+	$options=array();
+	for($i=1980;$i<=(int)date('Y');$i++) {
+		$options+=array($i.'02'=>t('!year winter',array('!year'=>$i)));
+		$options+=array($i.'08'=>t('!year summer',array('!year'=>$i)));
+	}
+	$form['organization']=array(
+		'#type' => 'select',
+		'#title' => t('Organization'),
+		'#required' => TRUE,
+		'#options' => $options,
+	);
+	$query=db_select('certificates','c')->fields('c')->orderBy('c.cid');
+	$rdbo=$query->execute();
+	$options=array();
+	foreach($rdbo as $r) {
+		$options+=array(
+			$r->cid=>sprintf('%s %s', $r->series, $r->name),
+		);
+	}
+	$form['certificatetype']=array(
+		'#type' => 'select',
+		'#title' => t('Certificate Type'),
+		'#required' => TRUE,
+		'#options' => $options,
+	);
+	$form['massivefile']=array(
+		'#type' => 'managed_file',
+		'#title' => t('Data file'),
+		'#required' => TRUE,
+		'#description' => t('Only .xls and .xlsx spreadsheets are supported.'),
+		'#upload_validators' => array('file_validate_extensions' => array('xls xlsx'), '_cert_issue_is_file_spreadsheet'=>array()),
+	);
+	$form['save']=array(
+		'#type' => 'submit',
+		'#value' => t('Next Step >'),
+	);
+	return $form;
 }
 
 function cert_issue_user_certs_page_access() {
@@ -86,7 +150,7 @@ function cert_issue_user_certs_page() {
 	$query->addExpression('c.name','cname');
 	$query->fields('c',array('series'));
 	$header=array(
-		array('data'=>t('Orgnizations series'),'field'=>'o.oid'),
+		array('data'=>t('Organizations series'),'field'=>'o.oid'),
 		array('data'=>t('Series'), 'field'=>'c.series'),
 		array('data'=>t('Specification name')),
 		array('data'=>t('Certificate no'), 'field'=>'ci.certid'),
@@ -146,7 +210,7 @@ function cert_issue_user_claim_form($form, $form_state) {
 				array('!url'=>l(t('here'), 'user/'.$student->uid.'/edit'))),
 	);
 	$header=array(
-		t('Orgnizations series'),
+		t('Organizations series'),
 		t('Specification name'),
 		t('Certificate no'),
 		t('True name'),
