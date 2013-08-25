@@ -85,13 +85,16 @@ function _cert_issue_is_file_spreadsheet($file) {
 	if(!preg_match('/\.xlsx{0,1}$/i', $file->filename)) return array();
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
 	$result=0;
-	switch(PHPExcel_IOFactory::identify($file->uri)) {
+	switch($format=PHPExcel_IOFactory::identify($file->uri)) {
 		case 'Excel5':
 		case 'Excel2007':
-			$objPHPExcel = PHPExcel_IOFactory::load($file->uri);
+			$objReader = PHPExcel_IOFactory::createReader($format);
+			$objReader->setReadDataOnly(true);
+			$objPHPExcel = $objReader->load($file->uri);
 			$result=$objPHPExcel->getSheetCount()>0;
 			$objPHPExcel->disconnectWorksheets();
 			unset($objPHPExcel);
+			unset($objReader);
 	}
 	if($result) return array();
 	else return array(t('It is not a valid spreadsheet file.'));
@@ -123,6 +126,11 @@ function cert_issue_massiveupload_form($form, $form_state) {
 		'#title' => t('Certificate Type'),
 		'#required' => TRUE,
 		'#options' => $options,
+	);
+	$form['autocreate']=array(
+		'#type' => 'checkbox',
+		'#title' => t('Auto create in-exist certificate operations.'),
+		'#default_value' => TRUE,
 	);
 	$form['massivefile']=array(
 		'#type' => 'managed_file',
