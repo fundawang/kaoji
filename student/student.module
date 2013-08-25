@@ -273,7 +273,11 @@ function student_user_account_form(&$form, $form_state) {
 		'#title' => !$defaults?t('Photo'):t('Change Photo'),
 		'#required' => TRUE,
 		'#required' => !$defaults,
-		'#upload_validators' => array('file_validate_extensions' => array('jpg png jpeg'), 'file_validate_image_resolution' => array('200x200', '150x150')),
+		'#upload_validators' => array(
+			'file_validate_extensions' => array('jpg png jpeg'),
+			'file_validate_image_resolution' => array('200x200', '150x150'),
+			'file_validate_is_image' => array(),
+		),
 		'#description' => t('Only image files are allowed to be uploaded.'),
 	);
 	if($defaults) {
@@ -361,12 +365,6 @@ function student_user_account_form_validate($form, $form_state) {
 	// 3. Validating pyname
 	if(!preg_match('/^[A-Z ]+$/', strtoupper(trim($edit['pyname'])))) {
 		form_set_error('pyname', t('The alphabet name you\'ve entered is not valid.'));
-	}
-	// 4. Validating photo
-	if($edit['photo']) {
-		$file=file_load($edit['photo']);
-		$errors=file_validate_is_image($file);
-		if(count($errors)!=0) form_set_error('photo', $errors[0]);
 	}
 }
 
