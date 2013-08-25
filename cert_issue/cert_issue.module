@@ -4,6 +4,17 @@
  * This file is licensed under GPLv2+.
 */
 
+function _cert_issue_get_status_text($status) {
+	switch($status) {
+		case 0:
+			return t('Normal');
+		case 1:
+			return t('Under approved');
+		default:
+			return t('Unknown');
+	}
+}
+
 /**
  * Implementation of hook_permission().
  */
@@ -31,6 +42,14 @@ function cert_issue_menu() {
 		'access callback' => 'user_access',
 		'access arguments'=> array('preload certificates'),
 	);
+	$items['user/certs'] = array(
+		'title' => 'My certificates',
+		'menu_name' => 'user-menu',
+		'plid' => '0',
+		'weight' => -10,
+		'page callback' => 'cert_issue_user_certs_page',
+		'access callback' => 'cert_issue_user_certs_page_access',
+	);
 	$items['user/claim'] = array(
 		'title' => 'Claim already issued certificates',
 		'menu_name' => 'user-menu',
@@ -39,20 +58,82 @@ function cert_issue_menu() {
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('cert_issue_user_claim_form'),
 		'access callback' => 'cert_issue_user_claim_access',
-		'access arguments'=> array(1),
 	);
 	return $items;
 }
 
-function cert_issue_user_claim_access($user) {
+function cert_issue_massiveupload_form($form, $form_state) {
+	return array();
+}
+
+function cert_issue_user_certs_page_access() {
 	$user=$GLOBALS['user'];
-	if(isset($user->uid) && $user->uid) {
-		return db_select('students','s')->fields('s')->condition('s.uid',$user->uid)->countQuery()->execute()->fetchField();
+	if(student_load($user)) {
+		return db_select('certificates_issues','ci')->fields('ci')->condition('ci.claimedby',$user->uid)
+			->countQuery()->execute()->fetchField();
 	} else return FALSE;
 }
 
-function cert_issue_massiveupload_form($form, $form_state) {
-	return array();
+function cert_issue_user_certs_page() {
+	$user=$GLOBALS['user'];
+	$query=db_select('certificates_issues','ci')
+		->condition('ci.claimedby',$user->uid)
+		->fields('ci',array('certid','issuedate','status'));
+	$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
+	$query->innerJoin('operations','o','co.oid=o.oid');
+	$query->innerJoin('certificates','c','co.cid=c.cid');
+	$query->addExpression('o.name','oname');
+	$query->addExpression('c.name','cname');
+	$query->fields('c',array('series'));
+	$header=array(
+		array('data'=>t('Orgnizations series'),'field'=>'o.oid'),
+		array('data'=>t('Series'), 'field'=>'c.series'),
+		array('data'=>t('Specification name')),
+		array('data'=>t('Certificate no'), 'field'=>'ci.certid'),
+		array('data'=>t('Status'), 'field'=>'ci.status'),
+	);
+	$rows=array();
+	$query->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);
+	$output = '';
+	$rdbo=$query->execute();
+	foreach($rdbo as $r) {
+		$rows[]=array(
+			$r->oname,
+			$r->series,
+			$r->cname,
+			$r->certid,
+			_cert_issue_get_status_text($r->status),
+		);
+	}
+	$output .= theme('table', array('header'=>$header, 'rows'=>$rows));
+	$output .= theme('pager');
+
+	if(cert_issue_user_claim_access())
+		$output .= '<div>'.l(t('Want claim more certificates?'), 'user/claim').'</div>';
+	return $output;
+}
+
+function cert_issue_user_claim_access() {
+	$user=$GLOBALS['user'];
+	if(isset($user->uid) && $user->uid) {
+		$student=student_load($user);
+		if(!$student) return FALSE;
+		$query=db_select('certificates_issues','ci')
+			->condition('ci.claimedby',0)
+			->condition('ci.gender',$student->gender)
+			->fields('ci');
+		if($student->exname) {
+			$condition=db_or()->condition('ci.name',$student->name)->condition('ci.name',$student->exname);
+			$query->condition($condition);
+			unset($condition);
+		} else
+			$query->condition('ci.name',$student->name);
+		$query->condition('ci.date_of_birth',substr($student->date_of_birth,0,6));
+		$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
+		$query->innerJoin('operations','o','co.oid=o.oid');
+		$query->innerJoin('certificates','c','co.cid=c.cid');
+		return $query->countQuery()->execute()->fetchField();
+	} else return FALSE;
 }
 
 function cert_issue_user_claim_form($form, $form_state) {
@@ -116,7 +197,7 @@ function cert_issue_user_claim_form($form, $form_state) {
 	return $form;
 }
 
-function cert_issue_user_claim_form_submit($form, $form_state) {
+function cert_issue_user_claim_form_submit($form, &$form_state) {
 	$certs=array_keys(array_filter($form_state['values']['certs']));
 	$i=0;
 	foreach($certs as $cert) {
@@ -125,6 +206,8 @@ function cert_issue_user_claim_form_submit($form, $form_state) {
 		))->execute();
 	}
 	if($i)
-		drupal_set_message(t('You claimed !num certificates', array('!num'=>$i)));
+		drupal_set_message(t('You claimed !num certificates.', array('!num'=>$i)));
+	if(!cert_issue_user_claim_access())
+		$form_state['redirect']='user/certs';
 }
 ?>
