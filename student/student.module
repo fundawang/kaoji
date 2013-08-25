@@ -386,7 +386,7 @@ function student_user_account_form_save($form, $form_state) {
 				$form_state['values']['gender'],
 			'name' => trim($form_state['values']['truename']),
 			'exname' => $form_state['values']['haveexname']?trim($form_state['values']['exname']):'',
-			'foreign_name' => trim($form_state['values']['pyname'])
+			'foreign_name' => strtoupper(trim($form_state['values']['pyname'])),
 		))->execute();
 		if($form_state['values']['photo']) {
 			$file=file_load($form_state['values']['photo']);
@@ -403,6 +403,15 @@ function student_user_account_form_save($form, $form_state) {
 				'picture' => base64_encode($data),
 			))->execute();
 		}
+}
+
+/**
+ * Implementation of object_load().
+ */
+function student_load($user) {
+	if($user && $user->uid)
+		return db_select('students','s')->condition('s.uid',$user->uid)->fields('s')->execute()->fetchObject();
+	else return FALSE;
 }
 
 ?>
