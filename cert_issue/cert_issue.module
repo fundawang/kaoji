@@ -82,11 +82,19 @@ function cert_issue_menu() {
 }
 
 function _cert_issue_is_file_spreadsheet($file) {
-	if(preg_match('/\.xlsx{0,1}$/i', $file->filename)) return array();
+	if(!preg_match('/\.xlsx{0,1}$/i', $file->filename)) return array();
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
-	if(PHPExcel_IOFactory::identify($file->uri)=='CSV')
-		return array(t('It is not a valid spreadsheet file.'));
-	return array();
+	$result=0;
+	switch(PHPExcel_IOFactory::identify($file->uri)) {
+		case 'Excel5':
+		case 'Excel2007':
+			$objPHPExcel = PHPExcel_IOFactory::load($file->uri);
+			$result=$objPHPExcel->getSheetCount()>0;
+			$objPHPExcel->disconnectWorksheets();
+			unset($objPHPExcel);
+	}
+	if($result) return array();
+	else return array(t('It is not a valid spreadsheet file.'));
 }
 
 function cert_issue_massiveupload_form($form, $form_state) {
