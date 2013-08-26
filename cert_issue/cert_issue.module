@@ -151,7 +151,7 @@ function cert_issue_massiveupload_form_step1($form, $form_state) {
 		'#type' => 'managed_file',
 		'#title' => t('Data file'),
 		'#required' => TRUE,
-		'#default_value' => 31,
+		'#default_value' => isset($form_state['storage']['fid'])?$form_state['storage']['fid']:31,
 		'#description' => t('Only .xls and .xlsx spreadsheets are supported.'),
 		'#upload_validators' => array('file_validate_extensions' => array('xls xlsx'), '_cert_issue_is_file_spreadsheet'=>array()),
 	);
@@ -203,6 +203,17 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline}'.
 		'body.sidebar-first div #post-content { width: 960px }'.
 		'div#sidebar { display: none }',
+		'inline'
+	);
+	drupal_add_js(
+		'jQuery(document).ready(function(){'.
+			'jQuery("td.rowheader").css("background",jQuery("th").css("background"));'.
+			'jQuery("td.rowheader").css("color",jQuery("th").css("color"));'.
+			'jQuery("td.rowheader").css("font-weight",jQuery("th").css("font-weight"));'.
+			'jQuery("td.rowheader").css("text-align","center");'.
+			'jQuery("th").css("text-align","center");'.
+			'})'.
+			'',
 		'inline'
 	);
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
@@ -327,19 +338,19 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 		'',			// Value that should be returned for empty cells
 		TRUE,		// Should formulas be calculated (the equivalent of getCalculatedValue() for each cell)
 		TRUE,		// Should values be formatted (the equivalent of getFormattedValue() for each cell)
-		TRUE		// Should the array be indexed by cell row and cell column
+		FALSE		// Should the array be indexed by cell row and cell column
 	);
 	$rows=array();
 	$i=1;
 	foreach($origrows as $row) {
-		array_unshift($row, $i++);
+		array_unshift($row, array('data'=>$i++, 'class'=>'rowheader'));
 		$rows[]=$row;
 	}
+	$header=range('A','L');
+	array_unshift($header, sprintf('[%s]',$objPHPExcel->getActiveSheet()->getTitle()));
 	$objPHPExcel->disconnectWorksheets();
 	unset($objPHPExcel);
 	unset($objReader);
-	$header=range('A','L');
-	array_unshift($header, '');
 	$form['demotitle']=array(
 		'#type' => 'item',
 		'#title' => t('Raw data for @filename', array('@filename'=>$file->filename)),
