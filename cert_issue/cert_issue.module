@@ -102,6 +102,19 @@ function _cert_issue_is_file_spreadsheet($file) {
 
 function cert_issue_massiveupload_form($form, $form_state) {
 	$form=array();
+	if(!isset($form_state['storage']['step'])) {
+		unset($form_state['storage']);
+		$form_state['storage']['step']=1;
+	}
+
+	if($form_state['storage']['step']==1)
+		$form=cert_issue_massiveupload_form_step1($form, $form_state);
+	else if($form_state['storage']['step']==2)
+		$form=cert_issue_massiveupload_form_step2($form, $form_state);
+	return $form;
+}
+
+function cert_issue_massiveupload_form_step1($form, $form_state) {
 	$options=array();
 	for($i=1980;$i<=(int)date('Y');$i++) {
 		$options+=array($i.'02'=>t('!year winter',array('!year'=>$i)));
@@ -112,6 +125,7 @@ function cert_issue_massiveupload_form($form, $form_state) {
 		'#title' => t('Organization'),
 		'#required' => TRUE,
 		'#options' => $options,
+		'#default_value' => isset($form_state['storage']['oid'])?$form_state['storage']['oid']:NULL,
 	);
 	$query=db_select('certificates','c')->fields('c')->orderBy('c.cid');
 	$rdbo=$query->execute();
@@ -126,6 +140,7 @@ function cert_issue_massiveupload_form($form, $form_state) {
 		'#title' => t('Certificate Type'),
 		'#required' => TRUE,
 		'#options' => $options,
+		'#default_value' => isset($form_state['storage']['cid'])?$form_state['storage']['cid']:NULL,
 	);
 	$form['autocreate']=array(
 		'#type' => 'checkbox',
@@ -136,6 +151,7 @@ function cert_issue_massiveupload_form($form, $form_state) {
 		'#type' => 'managed_file',
 		'#title' => t('Data file'),
 		'#required' => TRUE,
+		'#default_value' => 31,
 		'#description' => t('Only .xls and .xlsx spreadsheets are supported.'),
 		'#upload_validators' => array('file_validate_extensions' => array('xls xlsx'), '_cert_issue_is_file_spreadsheet'=>array()),
 	);
@@ -143,7 +159,218 @@ function cert_issue_massiveupload_form($form, $form_state) {
 		'#type' => 'submit',
 		'#value' => t('Next Step >'),
 	);
+	$form['#validate'][]='cert_issue_massiveupload_form_step1_validate';
+	$form['#submit'][]='cert_issue_massiveupload_form_step1_submit';
 	return $form;
+}
+
+function cert_issue_massiveupload_form_step1_validate($form, $form_state) {
+	if(!$form_state['values']['autocreate'] &&
+		certificate_operations_load($form_state['values']['certificatetype'], $form_state['values']['organization'])) {
+			form_set_error('organization',t('The selected organization does not contain selected certificate.'));
+			form_set_error('certificatetype');
+	}
+}
+
+function cert_issue_massiveupload_form_step1_submit($form, &$form_state) {
+	if($form_state['values']['autocreate']) {
+		// First merge th organizations table
+		$year=substr($form_state['values']['organization'],0,4);
+		$name=substr($form_state['values']['organization'],4,2)=='02'?t('!year winter',array('!year'=>$year)):t('!year summer',array('!year'=>$year));
+		db_merge('operations')->key(array('oid'=>$form_state['values']['organization']))->fields(array(
+			'year' => $year,
+			'name' => $name,
+		))->execute();
+		// Then merge th c_i table
+		if(!certificate_operations_load($form_state['values']['certificatetype'], $form_state['values']['organization'])) {
+			db_insert('certificates_operations')->fields(array(
+				'oid' => $form_state['values']['organization'],
+				'cid' => $form_state['values']['certificatetype'],
+				'visible' => 1,
+				'status' => 0,
+			))->execute();
+		}
+	}
+	$form_state['storage']['oid']=$form_state['values']['organization'];
+	$form_state['storage']['cid']=$form_state['values']['certificatetype'];
+	$form_state['storage']['fid']=$form_state['values']['massivefile'];
+	$form_state['rebuild']=TRUE;
+	$form_state['storage']['step']=2;
+}
+
+function cert_issue_massiveupload_form_step2($form, $form_state) {
+	drupal_add_css(
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline}'.
+		'body.sidebar-first div #post-content { width: 960px }'.
+		'div#sidebar { display: none }',
+		'inline'
+	);
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	$co=certificate_operations_load($form_state['storage']['cid'], $form_state['storage']['oid']);
+	$form['description']=array(
+		'#type' => 'item',
+		'#requires' => TRUE,
+		'#title' => t('Selected organization'),
+		'#markup' => t('!org !series !cname',
+			array('!org'=>$co->oname, '!series'=>$co->series, '!cname'=>$co->cname)),
+	);
+
+	$options=drupal_map_assoc(range(1,10));
+	$form['prefix']=array(
+		'#markup' => '<div class="inline-element-div">',
+	);
+	$i=1;
+	$form['beginrow']=array(
+		'#type' => 'select',
+		'#title' => t('Data started at row'),
+		'#description' => t('Please select where the data series begins, not the row where header locates.'),
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['beginrow'])?$form_state['storage']['beginrow']:'2',
+	);
+	$options=drupal_map_assoc(range('A','Z'));
+	$options_with_none=array('0'=>t('None'))+$options;
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['ticket_number_col']=array(
+		'#type' => 'select',
+		'#title' => t('Ticket number at col'),
+		'#options' => $options_with_none,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['ticket_number_col'])?$form_state['storage']['ticket_number_col']:'0',
+	);
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['certid_col']=array(
+		'#prefix' =>'<div style="width: 400px; display: inline; left: 400px;">',
+		'#suffix' =>'</div>',
+		'#type' => 'select',
+		'#title' => t('Certificate number at col'),
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['certid_col'])?$form_state['storage']['certid_col']:NULL,
+	);
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['name']=array(
+		'#type' => 'select',
+		'#title' => t('Real name at col'),
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['name_col'])?$form_state['storage']['name_col']:NULL,
+	);
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['pyname']=array(
+		'#type' => 'select',
+		'#title' => t('Pinyin name at col'),
+		'#options' => $options_with_none,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['pyname_col'])?$form_state['storage']['pyname_col']:'0',
+	);
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['gender']=array(
+		'#type' => 'select',
+		'#title' => t('Gender at col'),
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['gender_col'])?$form_state['storage']['gender_col']:NULL,
+	);
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['birthdate']=array(
+		'#type' => 'select',
+		'#title' => t('Birth date at col'),
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['birthdate_col'])?$form_state['storage']['birthdate_col']:NULL,
+	);
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['idcard_type']=array(
+		'#type' => 'select',
+		'#title' => t('ID Card type at col'),
+		'#options' => $options_with_none,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['idcard_type_col'])?$form_state['storage']['idcard_type_col']:'0',
+	);
+	$form['middilefix'.$i++]=array(
+		'#markup' => '</div><div class="inline-element-div">',
+	);
+	$form['idcardnumber']=array(
+		'#type' => 'select',
+		'#title' => t('ID Card nubmer at col'),
+		'#options' => $options_with_none,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['idcardnumber_col'])?$form_state['storage']['idcardnumber_col']:'0',
+	);
+	$form['suffix']=array(
+		'#markup' => '</div>',
+	);
+
+	// Display raw data for the spreadsheet
+	$file=file_load($form_state['storage']['fid']);
+	$format=PHPExcel_IOFactory::identify($file->uri);
+	$objReader = PHPExcel_IOFactory::createReader($format);
+	$objReader->setReadDataOnly(true);
+	$objPHPExcel = $objReader->load($file->uri);
+	$origrows=$objPHPExcel->getActiveSheet()->rangeToArray(
+		'A1:L10',	// The worksheet range that we want to retrieve
+		'',			// Value that should be returned for empty cells
+		TRUE,		// Should formulas be calculated (the equivalent of getCalculatedValue() for each cell)
+		TRUE,		// Should values be formatted (the equivalent of getFormattedValue() for each cell)
+		TRUE		// Should the array be indexed by cell row and cell column
+	);
+	$rows=array();
+	$i=1;
+	foreach($origrows as $row) {
+		array_unshift($row, $i++);
+		$rows[]=$row;
+	}
+	$objPHPExcel->disconnectWorksheets();
+	unset($objPHPExcel);
+	unset($objReader);
+	$header=range('A','L');
+	array_unshift($header, '');
+	$form['demotitle']=array(
+		'#type' => 'item',
+		'#title' => t('Raw data for @filename', array('@filename'=>$file->filename)),
+	);
+	$form['demo']=array(
+		'#markup' => theme('table',array('header'=>$header, 'rows'=>$rows)),
+	);
+
+	$form['previous']=array(
+		'#type' => 'submit',
+		'#value' => t('< Previous Step'),
+		'#submit' => array('cert_issue_massiveupload_form_step2_submit_previous'),
+		'#limit_validation_errors' => array(),
+	);
+	$form['submit']=array(
+		'#type' => 'submit',
+		'#value' => t('Upload data file and save'),
+	);
+
+	$form['#validate'][]='cert_issue_massiveupload_form_step2_validate';
+	$form['#submit'][]='cert_issue_massiveupload_form_step2_submit';
+	return $form;
+}
+
+function cert_issue_massiveupload_form_step2_validate($form, &$form_state) {}
+
+function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {}
+
+function cert_issue_massiveupload_form_step2_submit_previous($form, &$form_state) {
+	$form_state['rebuild']=TRUE;
+	$form_state['storage']['step']=1;
 }
 
 function cert_issue_user_certs_page_access() {
