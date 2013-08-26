@@ -17,7 +17,7 @@ function cert_issue_schema() {
 			'ticket_number' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
 			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
 			'foreign_name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
-			'idcard_type' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+			'idcard_type' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => NULL),
 			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
 			'date_of_birth' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE, 'default' => ''),
 			'gender' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
@@ -61,4 +61,11 @@ function cert_issue_update_7001() {
 		)
 	);
 	db_add_field('certificates_issues', 'idcard_type', $idcard_type, $index);
+}
+
+/**
+ * idcard_type can be null
+ */
+function cert_issue_update_7002() {
+	db_change_field('certificates_issues', 'idcard_type', 'idcard_type', array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => NULL));
 }
