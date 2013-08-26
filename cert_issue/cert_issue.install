@@ -16,9 +16,10 @@ function cert_issue_schema() {
 			'certid' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE, 'default' => ''),
 			'ticket_number' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
 			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
+			'foreign_name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
+			'idcard_type' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
 			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
 			'date_of_birth' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE, 'default' => ''),
-			'foreign_name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
 			'gender' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
 			'picture' => array('type' => 'text', 'size' => 'big', 'not null' => FALSE),
 			'issuedate' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE, 'default' => ''),
@@ -33,6 +34,7 @@ function cert_issue_schema() {
 			'name' => array('name'),
 			'coid' => array('coid'),
 			'ticket_number' => array('ticket_number'),
+			'idcard_type' => array('idcard_type'),
 			'idcard_number' => array('idcard_number'),
 			'issuedate' => array('issuedate'),
 			'claimedby' => array('claimedby'),
@@ -48,3 +50,15 @@ function cert_issue_schema() {
 	return $schema;
 }
 
+/**
+ * add foreign_name and idcard_type field
+ */
+function cert_issue_update_7001() {
+	$idcard_type = array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0);
+	$index=array(
+		'indexes' => array(
+			'idcard_type' => array('idcard_type')
+		)
+	);
+	db_add_field('certificates_issues', 'idcard_type', $idcard_type, $index);
+}
