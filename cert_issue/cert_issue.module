@@ -193,6 +193,9 @@ function cert_issue_massiveupload_form_step1_submit($form, &$form_state) {
 	}
 	$form_state['storage']['oid']=$form_state['values']['organization'];
 	$form_state['storage']['cid']=$form_state['values']['certificatetype'];
+	$form_state['storage']['coid']=db_select('certificates_operations','co')->fields('co',array('coid'))
+		->condition('co.cid',$form_state['values']['certificatetype'])->condition('co.oid',$form_state['values']['organization'])
+		->execute()->fetchField();
 	$form_state['storage']['fid']=$form_state['values']['massivefile'];
 	$form_state['rebuild']=TRUE;
 	$form_state['storage']['step']=2;
@@ -247,7 +250,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 		'#description' => t('Please select where the data series begins, not the row where header locates.'),
 		'#options' => $options,
 		'#required' => TRUE,
-		'#default_value' => isset($form_state['storage']['beginrow'])?$form_state['storage']['beginrow']:'2',
+		'#default_value' => isset($form_state['storage']['beginrow_col'])?$form_state['storage']['beginrow_col']:'2',
 	);
 	$options=drupal_map_assoc(range('A',$max_cols));
 	foreach($options as $key=>$val) {
@@ -258,7 +261,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	$form['middilefix'.$i++]=array(
 		'#markup' => '</div><div class="inline-element-div">',
 	);
-	$form['ticket_number_col']=array(
+	$form['ticket_number']=array(
 		'#type' => 'select',
 		'#title' => t('Ticket number at col'),
 		'#options' => $options_with_none,
@@ -485,6 +488,10 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 						));
 						break;
 					}
+				} else {
+					form_set_error('birthdate', t('!cord: The birthdate !val is invalid.',
+						array('!cord'=>$form_state['values']['birthdate'].$row, '!val' => $birthdate)
+					));
 				}
 			}
 
@@ -501,7 +508,7 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 
 			// Test idcard number
 			if($form_state['values']['idcardnumber']) {
-				$idcardnumber=trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue());
+				$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
 				if(!empty($idcard_type) && $idcard_type==0 && _student_is_idcardn_validate($idcardnumber)) {
 					form_set_error('idcard_type', t('!cord: The idcard number !val is invalid.',
 						array('!cord'=>$form_state['values']['idcardnumber'].$row, '!val' => $birthdate)
@@ -534,9 +541,77 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 }
 
 function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
+	$file=file_load($form_state['storage']['fid']);
+	$wrapper = file_stream_wrapper_get_instance_by_uri($file->uri);
+	$uri = $wrapper->getDirectoryPath() . "/" . file_uri_target($file->uri);
+	$format=PHPExcel_IOFactory::identify($uri);
+	$objReader = PHPExcel_IOFactory::createReader($format);
+	$objReader->setReadDataOnly(true);
+	$objPHPExcel = $objReader->load($uri);
+	$objWorksheet = $objPHPExcel->getActiveSheet();
+	$i=0;
+	$max_rows=$objWorksheet->getHighestRow();
+	for($row=$form_state['values']['beginrow'];$row<=$max_rows;$row++) {
+		$certid=trim($objWorksheet->getCell($form_state['values']['certid'].$row)->getCalculatedValue());
+		if($form_state['values']['ticket_number'])
+			$ticket_number=trim($objWorksheet->getCell($form_state['values']['ticket_number'].$row)->getCalculatedValue());
+		else
+			$ticket_number='';
+		$name=trim($objWorksheet->getCell($form_state['values']['name'].$row)->getCalculatedValue());
+		if($form_state['values']['pyname'])
+			$pyname=trim($objWorksheet->getCell($form_state['values']['pyname'].$row)->getCalculatedValue());
+		else
+			$pyname='';
+		if($form_state['values']['idcard_type'])
+			$idcard_type=trim($objWorksheet->getCell($form_state['values']['idcard_type'].$row)->getCalculatedValue());
+		else
+			$idcard_type=NULL;
+		if($form_state['values']['idcardnumber'])
+			$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
+		else
+			$idcardnumber='';
+		$birthdate=trim($objWorksheet->getCell($form_state['values']['birthdate'].$row)->getCalculatedValue());
+		$gender=trim($objWorksheet->getCell($form_state['values']['gender'].$row)->getCalculatedValue());
+		if(in_array($gender,array('1',t('Male'))))
+			$gender=1;
+		else
+			$gender=2;
+		$claimedby=(int)db_select('students','s')->condition('s.idcard_type')->fields('s',array('uid'))->execute()->fetchField();
+		$r=db_insert('certificates_issues')->fields(array(
+			'coid' => $form_state['storage']['coid'],
+			'certid' => $certid,
+			'ticket_number' => $ticket_number,
+			'name' => $name,
+			'foreign_name' => $pyname,
+			'idcard_type' => $idcard_type,
+			'idcard_number' => $idcardnumber,
+			'date_of_birth' => $birthdate,
+			'gender' => $gender,
+			'issuedate' => sprintf("%04d%02d%02d",$form_state['values']['issuedate']['year'], $form_state['values']['issuedate']['month'], $form_state['values']['issuedate']['day']),
+			'claimedby' => $claimedby,
+		))->execute();
+		if($r) {
+			$i++;
+			$form_state['storage']['beginrow_col']=$form_state['values']['beginrow'];
+			$form_state['storage']['ticket_number_col']=$form_state['values']['ticket_number'];
+			$form_state['storage']['certid_col']=$form_state['values']['certid'];
+			$form_state['storage']['name_col']=$form_state['values']['name'];
+			$form_state['storage']['pyname_col']=$form_state['values']['pyname'];
+			$form_state['storage']['gender_col']=$form_state['values']['gender'];
+			$form_state['storage']['birthdate_col']=$form_state['values']['birthdate'];
+			$form_state['storage']['idcard_type_col']=$form_state['values']['idcard_type'];
+			$form_state['storage']['idcardnumber_col']=$form_state['values']['idcardnumber'];
+		}
+	}
+
+	$objWorksheet->disconnectCells();
+	$objPHPExcel->disconnectWorksheets();
+	unset($objPHPExcel);
+	unset($objReader);
 	$form_state['rebuild']=TRUE;
 	unset($form_state['storage']['fid']);
 	$form_state['storage']['step']=1;
+	drupal_set_message(t('!num records are imported.', array('!num'=>$i)));
 }
 
 function cert_issue_massiveupload_form_step2_submit_previous($form, &$form_state) {
