@@ -206,7 +206,14 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 		'inline'
 	);
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
-	
+	$file=file_load($form_state['storage']['fid']);
+	$format=PHPExcel_IOFactory::identify($file->uri);
+	$objReader = PHPExcel_IOFactory::createReader($format);
+	$objReader->setReadDataOnly(true);
+	$objPHPExcel = $objReader->load($file->uri);
+	$max_cols=$objPHPExcel->getActiveSheet()->getHighestColumn();
+	$max_rows=$objPHPExcel->getActiveSheet()->getHighestRow();
+
 	$co=certificate_operations_load($form_state['storage']['cid'], $form_state['storage']['oid']);
 	$form['description']=array(
 		'#type' => 'item',
@@ -216,7 +223,18 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 			array('!org'=>$co->oname, '!series'=>$co->series, '!cname'=>$co->cname)),
 	);
 
-	$options=drupal_map_assoc(range(1,10));
+	$options=drupal_map_assoc(range(1,$max_rows));
+	$form['issuedate']=array(
+		'#type' => 'date',
+		'#title' => t('Certificate issue date'),
+		'#default_value' => array(
+			'year' => substr($form_state['storage']['oid'],0,4),
+			'month' => (int)substr($form_state['storage']['oid'],4,2),
+			'day' => 1,
+		),
+		'#required' => TRUE,
+	);
+
 	$form['prefix']=array(
 		'#markup' => '<div class="inline-element-div">',
 	);
@@ -229,7 +247,11 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 		'#required' => TRUE,
 		'#default_value' => isset($form_state['storage']['beginrow'])?$form_state['storage']['beginrow']:'2',
 	);
-	$options=drupal_map_assoc(range('A','Z'));
+	$options=drupal_map_assoc(range('A',$max_cols));
+	foreach($options as $key=>$val) {
+		if(!$objPHPExcel->getActiveSheet()->getColumnDimension($key)->getVisible())
+			unset($options[$key]);
+	}
 	$options_with_none=array('0'=>t('None'))+$options;
 	$form['middilefix'.$i++]=array(
 		'#markup' => '</div><div class="inline-element-div">',
@@ -244,7 +266,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	$form['middilefix'.$i++]=array(
 		'#markup' => '</div><div class="inline-element-div">',
 	);
-	$form['certid_col']=array(
+	$form['certid']=array(
 		'#prefix' =>'<div style="width: 400px; display: inline; left: 400px;">',
 		'#suffix' =>'</div>',
 		'#type' => 'select',
@@ -318,13 +340,8 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	);
 
 	// Display raw data for the spreadsheet
-	$file=file_load($form_state['storage']['fid']);
-	$format=PHPExcel_IOFactory::identify($file->uri);
-	$objReader = PHPExcel_IOFactory::createReader($format);
-	$objReader->setReadDataOnly(true);
-	$objPHPExcel = $objReader->load($file->uri);
 	$origrows=$objPHPExcel->getActiveSheet()->rangeToArray(
-		'A1:L10',	// The worksheet range that we want to retrieve
+		'A1:'.($max_cols>'L'?'L':$max_cols).($max_rows>10?'10':$max_rows),	// The worksheet range that we want to retrieve
 		'',			// Value that should be returned for empty cells
 		TRUE,		// Should formulas be calculated (the equivalent of getCalculatedValue() for each cell)
 		TRUE,		// Should values be formatted (the equivalent of getFormattedValue() for each cell)
@@ -336,7 +353,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 		array_unshift($row, array('data'=>$i++, 'header'=>TRUE));
 		$rows[]=$row;
 	}
-	$header=range('A','L');
+	$header=range('A',($max_cols>'L'?'L':$max_cols));
 	array_unshift($header, sprintf('[%s]',$objPHPExcel->getActiveSheet()->getTitle()));
 	$objPHPExcel->disconnectWorksheets();
 	unset($objPHPExcel);
@@ -344,6 +361,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	$form['demotitle']=array(
 		'#type' => 'item',
 		'#title' => t('Raw data for @filename', array('@filename'=>$file->filename)),
+		'#markup' => t('Note: the raw data shows the hidden rows, but those rows will be skipped during processing.'),
 	);
 	$form['demo']=array(
 		'#markup' => theme('table',array('header'=>$header, 'rows'=>$rows)),
@@ -357,7 +375,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	);
 	$form['submit']=array(
 		'#type' => 'submit',
-		'#value' => t('Upload data file and save'),
+		'#value' => t('Upload data file & save'),
 	);
 
 	$form['#validate'][]='cert_issue_massiveupload_form_step2_validate';
@@ -365,9 +383,157 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	return $form;
 }
 
-function cert_issue_massiveupload_form_step2_validate($form, &$form_state) {}
+function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	if($form_state['values']['certid'] && $form_state['values']['name'] && $form_state['values']['gender']
+		&& $form_state['values']['birthdate'])
+	{
+		$file=file_load($form_state['storage']['fid']);
+		$format=PHPExcel_IOFactory::identify($file->uri);
+		$objReader = PHPExcel_IOFactory::createReader($format);
+		$objReader->setReadDataOnly(true);
+		$objPHPExcel = $objReader->load($file->uri);
+		$objWorksheet = $objPHPExcel->getActiveSheet();
+		$row=$form_state['values']['beginrow'];
+		$max_rows=$objWorksheet->getHighestRow();
+		$certids=array();
+		do {
+			if(!$objWorksheet->getRowDimension($row)->getVisible()) continue;
+			// Test certid
+			
+			$certid=trim($objWorksheet->getCell($form_state['values']['certid'].$row)->getCalculatedValue());
 
-function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {}
+			if(empty($certid)) {
+				form_set_error('certid', t('!cord: The certid is empty.',
+					array('!cord'=>$form_state['values']['certid'].$row)));
+				break;
+			} 
+
+			
+			if(in_array($certid, $certids)) {
+				form_set_error('certid',
+					t('!cord: Cert id has duplicated value !val.',
+						array('!cord'=>$form_state['values']['certid'].$row, '!val' => $certid)
+					)
+				);
+				break;
+			}
+
+			if(db_select('certificates_issues','ci')->fields('ci')->condition('ci.certid',$certid)->countQuery()->execute()->fetchField()) {
+				form_set_error('certid',
+					t('!cord: The value !val duplicate with existing certids.',
+						array('!cord'=>$form_state['values']['certid'].$row, '!val' => $certid)
+					)
+				);
+				break;
+			}
+			$certids[]=$certid;
+			
+			
+			// Test name
+			$name=trim($objWorksheet->getCell($form_state['values']['name'].$row)->getCalculatedValue());
+			if(empty($name)) {
+				form_set_error('name', t('!cord: The name is empty.',
+					array('!cord'=>$form_state['values']['name'].$row)));
+				break;
+			}
+
+			// Test pyname
+			if($form_state['values']['pyname']) {
+				$pyname=strtoupper(trim($objWorksheet->getCell($form_state['values']['pyname'].$row)->getCalculatedValue()));
+				if(!empty($pyname) && !preg_match('/^[A-Z ]+$/', $pyname)) {
+					form_set_error('pyname', t('!cord: The alphabet name !val is not valid.',
+						array('!cord'=>$form_state['values']['pyname'].$row, '!val' => $pyname)
+					));
+					break;
+				}
+			}
+
+			
+			// Test gender
+			$gender=trim($objWorksheet->getCell($form_state['values']['gender'].$row)->getCalculatedValue());
+			if(!in_array($gender, array('1','2',t('Male'),t('Female')))) {
+				form_set_error('gender', t('!cord: The gender !val is invalid.',
+					array('!cord'=>$form_state['values']['gender'].$row, '!val' => $gender)
+				));
+				break;
+			}
+
+			// Test birthdate
+			if($form_state['values']['birthdate']) {
+				$birthdate=trim($objWorksheet->getCell($form_state['values']['birthdate'].$row)->getCalculatedValue());
+				if(!empty($birthdate) && !preg_match('/^[0-9]+$/', $birthdate)) {
+					form_set_error('birthdate', t('!cord: The birthdate !val is invalid.',
+						array('!cord'=>$form_state['values']['birthdate'].$row, '!val' => $birthdate)
+					));
+					break;
+				}
+				if(strlen($birthdate)==6) {
+					if(!_student_is_date_validate($birthdate.'01')) {
+						form_set_error('birthdate', t('!cord: The birthdate !val is invalid.',
+							array('!cord'=>$form_state['values']['birthdate'].$row, '!val' => $birthdate)
+						));
+						break;
+					}
+				} else if(strlen($birthdate)==8) {
+					if(!_student_is_date_validate($birthdate)) {
+						form_set_error('birthdate', t('!cord: The birthdate !val is invalid.',
+							array('!cord'=>$form_state['values']['birthdate'].$row, '!val' => $birthdate)
+						));
+						break;
+					}
+				}
+			}
+
+			// Test idcard_type
+			if($form_state['values']['idcard_type']) {
+				$idcard_type=trim($objWorksheet->getCell($form_state['values']['idcard_type'].$row)->getCalculatedValue());
+				if(!empty($idcard_type) && !preg_match('/^[0-9]$/', $idcard_type)) {
+					form_set_error('idcard_type', t('!cord: The idcard type !val is invalid.',
+						array('!cord'=>$form_state['values']['idcard_type'].$row, '!val' => $birthdate)
+					));
+					break;
+				}
+			}
+
+			// Test idcard number
+			if($form_state['values']['idcardnumber']) {
+				$idcardnumber=trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue());
+				if(!empty($idcard_type) && $idcard_type==0 && _student_is_idcardn_validate($idcardnumber)) {
+					form_set_error('idcard_type', t('!cord: The idcard number !val is invalid.',
+						array('!cord'=>$form_state['values']['idcardnumber'].$row, '!val' => $birthdate)
+					));
+					break;
+				}
+				$student=db_select('students','s')->fields('s')
+					->condition('s.idcard_type',$idcard_type)->condition('s.idcard_number',$idcardnumber)
+					->execute()->fetchObject();
+				if(!$student) break;
+				if(($student->name != $name && $student->exname != $name) || ($student_gender != $gender)) {
+					$form_set_error('idcardnumber',
+						t('!cord: The idcard number !val does not match what the users have input (!name, !gender).',
+							array('!cord'=>$form_state['values']['idcardnumber'].$row, '!val' => $idcardnumber,
+								'!name'=>empty($student->exname)?$student->name:(sprintf('%s (%s)', $student->name, $student->exname))
+							)
+						)
+					);
+					break;
+				}
+			}
+			
+		} while ($row++<$max_rows);
+		$objWorksheet->disconnectCells();
+		$objPHPExcel->disconnectWorksheets();
+		unset($objPHPExcel);
+		unset($objReader);
+	}
+}
+
+function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
+	$form_state['rebuild']=TRUE;
+	unset($form_state['storage']['fid']);
+	$form_state['storage']['step']=1;
+}
 
 function cert_issue_massiveupload_form_step2_submit_previous($form, &$form_state) {
 	$form_state['rebuild']=TRUE;
