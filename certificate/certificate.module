@@ -261,7 +261,6 @@ function certificate_specification_form_submit($form, $form_state) {
 function certificate_specification_form_modify_submit($form, &$form_state) {
 	$form_state['rebuild'] = TRUE;
 	$form_state['storage']['cid']=substr($form_state['triggering_element']['#name'],7);
-	$form_state['values']['name']='3333';
 }
 
 function certificate_specification_form_delete_submit($form, $form_state) {
@@ -317,6 +316,18 @@ function theme_certificate_specification_form($variables) {
 }
 
 function certificate_operations_form($form, $form_state) {
+}
+
+function certificate_operations_load($cid, $oid) {
+	$query=db_select('certificates_operations','co')->fields('co')
+		->condition('co.oid',$oid)
+		->condition('co.cid',$cid);
+	$query->innerJoin('operations','o','o.oid=co.oid');
+	$query->innerJoin('certificates','c','c.cid=co.cid');
+	$query->addExpression('c.name','cname');
+	$query->addExpression('o.name','oname');
+	$query->fields('c',array('series'));
+	return $query->execute()->fetchObject();
 }
 
 ?>
