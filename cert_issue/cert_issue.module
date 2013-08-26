@@ -200,23 +200,13 @@ function cert_issue_massiveupload_form_step1_submit($form, &$form_state) {
 
 function cert_issue_massiveupload_form_step2($form, $form_state) {
 	drupal_add_css(
-		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline}'.
-		'body.sidebar-first div #post-content { width: 960px }'.
-		'div#sidebar { display: none }',
-		'inline'
-	);
-	drupal_add_js(
-		'jQuery(document).ready(function(){'.
-			'jQuery("td.rowheader").css("background",jQuery("th").css("background"));'.
-			'jQuery("td.rowheader").css("color",jQuery("th").css("color"));'.
-			'jQuery("td.rowheader").css("font-weight",jQuery("th").css("font-weight"));'.
-			'jQuery("td.rowheader").css("text-align","center");'.
-			'jQuery("th").css("text-align","center");'.
-			'})'.
-			'',
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline;}'.
+		'body.sidebar-first div #post-content { width: 960px; }'.
+		'div#sidebar { display: none; }',
 		'inline'
 	);
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	
 	$co=certificate_operations_load($form_state['storage']['cid'], $form_state['storage']['oid']);
 	$form['description']=array(
 		'#type' => 'item',
@@ -343,7 +333,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	$rows=array();
 	$i=1;
 	foreach($origrows as $row) {
-		array_unshift($row, array('data'=>$i++, 'class'=>'rowheader'));
+		array_unshift($row, array('data'=>$i++, 'header'=>TRUE));
 		$rows[]=$row;
 	}
 	$header=range('A','L');
