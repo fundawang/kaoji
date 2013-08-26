@@ -363,7 +363,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	$form['demotitle']=array(
 		'#type' => 'item',
 		'#title' => t('Raw data for @filename', array('@filename'=>$file->filename)),
-		'#markup' => t('Note: the raw data shows the hidden rows, but those rows will be skipped during processing.'),
+		'#markup' => t('Note: the raw data shows the hidden rows and columns, which means these rows and column will be proceeded.'),
 	);
 	$form['demo']=array(
 		'#markup' => theme('table',array('header'=>$header, 'rows'=>$rows)),
@@ -391,18 +391,20 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 		&& $form_state['values']['birthdate'])
 	{
 		$file=file_load($form_state['storage']['fid']);
-		$format=PHPExcel_IOFactory::identify($file->uri);
+		$wrapper = file_stream_wrapper_get_instance_by_uri($file->uri);
+		$uri = $wrapper->getDirectoryPath() . "/" . file_uri_target($file->uri);
+		$format=PHPExcel_IOFactory::identify($uri);
 		$objReader = PHPExcel_IOFactory::createReader($format);
 		$objReader->setReadDataOnly(true);
-		$objPHPExcel = $objReader->load($file->uri);
+		$objPHPExcel = $objReader->load($uri);
 		$objWorksheet = $objPHPExcel->getActiveSheet();
 		$row=$form_state['values']['beginrow'];
 		$max_rows=$objWorksheet->getHighestRow();
 		$certids=array();
 		do {
-			if(!$objWorksheet->getRowDimension($row)->getVisible()) continue;
+			$row=(string)$row;
+	
 			// Test certid
-			
 			$certid=trim($objWorksheet->getCell($form_state['values']['certid'].$row)->getCalculatedValue());
 
 			if(empty($certid)) {
@@ -451,7 +453,6 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 				}
 			}
 
-			
 			// Test gender
 			$gender=trim($objWorksheet->getCell($form_state['values']['gender'].$row)->getCalculatedValue());
 			if(!in_array($gender, array('1','2',t('Male'),t('Female')))) {
@@ -524,6 +525,7 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 			}
 			
 		} while ($row++<$max_rows);
+
 		$objWorksheet->disconnectCells();
 		$objPHPExcel->disconnectWorksheets();
 		unset($objPHPExcel);
