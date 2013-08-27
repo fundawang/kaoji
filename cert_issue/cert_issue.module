@@ -706,7 +706,7 @@ function cert_issue_user_certs_page() {
 	$output .= theme('pager');
 
 	if(cert_issue_user_claim_access())
-		$output .= '<div>'.l(t('Want claim more certificates?'), 'user/claim').'</div>';
+		$output .= '<div>'.l(t('Want to claim more certificates?'), 'user/claim').'</div>';
 	return $output;
 }
 
@@ -1052,7 +1052,7 @@ function cert_issue_user_exchange_page() {
 		$rows[]=array(
 			sprintf('%s %s', $cer->series, $cer->cname),
 			$cer->cname_orig_formatted,
-			cert_issue_user_exchange_form_access($cer)?l(t('Apply'),'user/exchange/'.$r->cerid):t('Cannot apply'),
+			cert_issue_user_exchange_form_access($cer)?l(t('Apply for this new certificate'),'user/exchange/'.$r->cerid):t('Cannot apply'),
 		);
 	}
 	$output.=theme('table',array('header'=>$header, 'rows'=>$rows, 'empty'=>t('There is no currently open rolls for certificate exchange.')));
