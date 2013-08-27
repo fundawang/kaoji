@@ -319,10 +319,10 @@ function student_user_account_form_validate($form, $form_state) {
 	// 1. Validating idcard number
 	$idnumber=strtoupper(trim($edit['idnumber']));
 	// 1.1 If the idcard number is occupied by any others.
-	$query=db_select('students','s')->fields('s')
-		->condition('s.idcard_number',$idnumber)
-		->condition('s.uid',$user->uid,'<>');
-	if($query->execute()->rowCount())  {
+	$query=db_query('SELECT EXISTS( SELECT * FROM {students} WHERE idcard_number=:idcard_number AND uid<>:uid)',
+		array(':idcard_number'=>$idnumber, ':uid'=>$user->uid)
+	);
+	if($query->fetchField())  {
 		form_set_error('idnumber', t('The ID Card number you\'ve entered is occupied by somebody else.'));
 		return;
 	}
