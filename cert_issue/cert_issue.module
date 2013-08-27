@@ -26,6 +26,9 @@ function cert_issue_help($path, $arg) {
 		case 'user/claim':
 			$output = t('Claim system preloaded certificates.');
 			break;
+		case 'user/exchange':
+			$output = t('Apply for certificates exchange.');
+			break;
 		case 'certificate/massiveupload': 
 			$output = t('If you want to massive upload the certificates which are already issued, please use this feature.');
 			break;
@@ -102,6 +105,23 @@ function cert_issue_menu() {
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('cert_issue_user_claim_form'),
 		'access callback' => 'cert_issue_user_claim_access',
+	);
+	$items['user/exchange'] = array(
+		'title' => 'Exchange certificates',
+		'menu_name' => 'user-menu',
+		'plid' => '0',
+		'weight' => -8,
+		'page callback' => 'cert_issue_user_exchange_page',
+		'access callback' => 'cert_issue_user_certs_page_access',
+	);
+	$items['user/exchange/%cer'] = array(
+		'type' => MENU_CALLBACK,
+		'title callback' => 'cert_issue_user_exchange_form_title', 
+		'title arguments' => array(2),
+		'page callback' => 'cert_issue_user_exchange_form',
+		'page arguments' => array(2),
+		'access callback' => 'cert_issue_user_exchange_form_access',
+		'access arguments'=> array(2),
 	);
 	return $items;
 }
@@ -191,7 +211,7 @@ function cert_issue_massiveupload_form_step1($form, $form_state) {
 
 function cert_issue_massiveupload_form_step1_validate($form, $form_state) {
 	if(!$form_state['values']['autocreate'] &&
-		certificate_operations_load($form_state['values']['certificatetype'], $form_state['values']['organization'])) {
+		!certificate_operations_load($form_state['values']['certificatetype'], $form_state['values']['organization'])) {
 			form_set_error('organization',t('The selected organization does not contain selected certificate.'));
 			form_set_error('certificatetype');
 	}
@@ -450,7 +470,7 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 				break;
 			}
 
-			if(db_select('certificates_issues','ci')->fields('ci')->condition('ci.certid',$certid)->countQuery()->execute()->fetchField()) {
+			if(db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} WHERE certid=:certid', array(':certid'=>$certid))->fetchField()) {
 				form_set_error('certid',
 					t('!cord: The value !val duplicate with existing certids.',
 						array('!cord'=>$form_state['values']['certid'].$row, '!val' => $certid)
@@ -646,8 +666,8 @@ function cert_issue_massiveupload_form_step2_submit_previous($form, &$form_state
 function cert_issue_user_certs_page_access() {
 	$user=$GLOBALS['user'];
 	if(student_load($user)) {
-		return db_select('certificates_issues','ci')->fields('ci')->condition('ci.claimedby',$user->uid)
-			->countQuery()->execute()->fetchField();
+		return db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} WHERE claimedby=:uid)',
+			array(':uid'=>$user->uid))->fetchField();
 	} else return FALSE;
 }
 
@@ -692,24 +712,10 @@ function cert_issue_user_certs_page() {
 
 function cert_issue_user_claim_access() {
 	$user=$GLOBALS['user'];
-	if(isset($user->uid) && $user->uid) {
+	if(isset($user->uid) && $user->uid && user_access('claim certificates')) {
 		$student=student_load($user);
 		if(!$student) return FALSE;
-		$query=db_select('certificates_issues','ci')
-			->condition('ci.claimedby',0)
-			->condition('ci.gender',$student->gender)
-			->fields('ci');
-		if($student->exname) {
-			$condition=db_or()->condition('ci.name',$student->name)->condition('ci.name',$student->exname);
-			$query->condition($condition);
-			unset($condition);
-		} else
-			$query->condition('ci.name',$student->name);
-		$query->condition('ci.date_of_birth',substr($student->date_of_birth,0,6));
-		$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
-		$query->innerJoin('operations','o','co.oid=o.oid');
-		$query->innerJoin('certificates','c','co.cid=c.cid');
-		return $query->countQuery()->execute()->fetchField();
+		else return TRUE;
 	} else return FALSE;
 }
 
@@ -876,13 +882,12 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 		array('data' => t('Series'), 'field'=> 'series'),
 		array('data' => t('Specification'), 'field'=> 'name'),
 		array('data' => t('Exchange requirements'), 'field'=> 'name'),
-		array('data' => t('Status'), 'field'=> 'status_mod', 'sort'=>'desc'),
+		array('data' => t('Status'), 'field'=> 'status', 'sort'=>'desc'),
 		array('data' => t('Operation')),
 	);
 	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')
 		->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);
 	$query->innerJoin('certificates','c','c.cid=cer.cid');
-	$query->addExpression('1-MOD(cer.status,2)','status_mod');
 	$query->fields('c',array('series','name'));
 	$form['rolls']=array(
 		'#type' => 'fieldset',
@@ -948,7 +953,7 @@ function theme_cert_issue_exchange_rolls_form($variables) {
 		array('data' => t('Series'), 'field'=> 'series'),
 		array('data' => t('Specification'), 'field'=> 'name'),
 		array('data' => t('Exchange requirements'), 'field'=> 'name'),
-		array('data' => t('Status'), 'field'=> 'status_mod', 'sort'=>'desc'),
+		array('data' => t('Status'), 'field'=> 'status', 'sort'=>'desc'),
 		array('data' => t('Operation')),
 	);
 	$rows=array();
@@ -985,9 +990,8 @@ function cert_issue_exchange_rolls_form_validate($form, $form_state) {
 		form_set_error('cid_orig');
 		form_set_error('cid_orig_extra', t('You cannot select the same value for both old certificates.'));
 	} else {
-		$query=db_select('certificates_exchange_rolls','cer')->fields('cer')
-			->condition('cer.cid',$form_state['values']['cid'])->condition('cer.status',1);
-		if($query->countQuery()->execute()->fetchField())
+		$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_exchange_rolls} WHERE cid=:cid AND status=2)', array(':cid'=>$form_state['values']['cid']));
+		if($query->fetchField())
 			form_set_error('cid', t('There is ongoing certificate exchange roll with the same new certificate.'));
 	}
 }
@@ -1027,5 +1031,76 @@ function cert_issue_exchange_rolls_form_close_submit($form, $form_state) {
 		'status'=>1
 	))->condition('cerid',$cerid)->execute();
 	drupal_set_message(t('Roll closed.'));
+}
+
+function cert_issue_user_exchange_page() {
+	$output = '';
+	$output .= t('In this page, you could deal with certificate exchange feature.');
+	$output .= t('You will see current open rolls for you to select.');
+
+	$header = array(
+		t('New certificate to apply'),
+		t('Requirements'),
+		t('Operation'),
+	);
+
+	$rows=array();
+	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')->condition('cer.status',2);
+	$rdbo=$query->execute();
+	foreach($rdbo as $r) {
+		$cer=cer_load($r->cerid);
+		$rows[]=array(
+			sprintf('%s %s', $cer->series, $cer->cname),
+			$cer->cname_orig_formatted,
+			cert_issue_user_exchange_form_access($cer)?l(t('Apply'),'user/exchange/'.$r->cerid):t('Cannot apply'),
+		);
+	}
+	$output.=theme('table',array('header'=>$header, 'rows'=>$rows, 'empty'=>t('There is no currently open rolls for certificate exchange.')));
+	return $output;
+}
+
+function cer_load($cer) {
+	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')->condition('cer.cerid',$cer);
+	$query->innerJoin('certificates','c','c.cid=cer.cid');
+	$query->addExpression('c.name','cname');
+	$query->fields('c',array('series'));
+	$obj=$query->execute()->fetchObject();
+	if(!$obj) return FALSE;
+	$cid_orig=json_decode($obj->cid_orig);
+	$obj->cid_orig=$cid_orig;
+	$cids=array();
+	foreach($cid_orig as $cid) {
+		$cids[]=db_select('certificates','c')->condition('c.cid',$cid)->fields('c',array('name'))->execute()->fetchField();
+	}
+	$obj->cname_orig=$cids;
+	if(count($cids)>1)
+		$c='<ul><li>'.implode('</li><li>',$cids).'</li></ul>';
+	else
+		$c=$cids[0];
+	$obj->cname_orig_formatted=$c;
+	return $obj;
+}
+
+function cert_issue_user_exchange_form_title($cer) {
+	return t('Apply @cname to exchange',array('@cname'=>$cer->cname));
+}
+
+function cert_issue_user_exchange_form_access($cer) {
+	if(isset($cer->status) && $cer->status <> 2) return FALSE;
+	if(!cert_issue_user_certs_page_access()) return FALSE;
+	$user=$GLOBALS['user'];
+
+	$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} ci INNER JOIN {certificates_operations} co '.
+		'ON co.coid=ci.coid WHERE ci.claimedby=:uid AND co.cid=:cid)',
+		array(':uid'=>$user->uid, ':cid'=>$cer->cid)
+	);
+	if($query->fetchField()) return FALSE;
+
+	foreach($cer->cid_orig as $cid) {
+		$query=db_query('SELECT EXISTS (SELECT * FROM {certificates_issues} ci INNER JOIN {certificates_operations} co ON co.coid=ci.coid WHERE ci.claimedby=:uid AND ci.status=0 AND co.cid=:cid)',
+			array(':uid'=>$user->uid, ':cid'=>$cid));
+		if($query->fetchField()==0) return FALSE;
+	}
+	return TRUE;
 }
 ?>
