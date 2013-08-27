@@ -47,6 +47,27 @@ function cert_issue_schema() {
 			),
 		),
 	);
+	$schema['certificates_exchange_rolls'] = array(
+		'description' => t('This table stores the rolls of certificates exchange.'),
+		'fields' => array(
+			'cerid' => array('type' => 'serial', 'not null' => TRUE),
+			'cid' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+			'cid_orig' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
+			'status' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
+		),
+		'primary key' => array('cerid'),
+		'indexes' => array(
+			'cid' => array('cid'),
+			'cid_orig' => array('cid_orig'),
+			'status' => array('status'),
+		),
+		'foreign keys' => array(
+			'cid' => array(
+				'table' => 'certificates',
+				'columns' => array('cid' => 'cid'),
+			),
+		),
+	);
 	return $schema;
 }
 
@@ -68,4 +89,19 @@ function cert_issue_update_7001() {
  */
 function cert_issue_update_7002() {
 	db_change_field('certificates_issues', 'idcard_type', 'idcard_type', array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => NULL));
+}
+
+/**
+ * about to support cert_exchange feature
+ */
+function cert_issue_update_7003() {
+	$schemas=drupal_get_schema_unprocessed('cert_issue','certificates_exchange_rolls');
+	db_create_table('certificates_exchange_rolls', $schemas);
+}
+
+/**
+ * change cid_orig into varchar, it may contains multiple cids
+ */
+function cert_issue_update_7004() {
+	db_change_field('certificates_exchange_rolls', 'cid_orig', 'cid_orig', array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''));
 }

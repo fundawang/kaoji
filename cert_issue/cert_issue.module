@@ -29,6 +29,9 @@ function cert_issue_help($path, $arg) {
 		case 'certificate/massiveupload': 
 			$output = t('If you want to massive upload the certificates which are already issued, please use this feature.');
 			break;
+		case 'certificate/exchangerolls': 
+			$output = t('Add roll for certificates exchange, or manipulate the status of rolls.');
+			break;
 	}
 	if (isset($output))
 		return $output;
@@ -45,6 +48,20 @@ function cert_issue_permission() {
 		'claim certificates' => array(
 			'title' => t('Claim already issued certificates'),
 		),
+		'admin certificates exchange rolls' => array(
+			'title' => t('Administrate certificates exchange rolls'),
+		),
+	);
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function cert_issue_theme() {
+	return array(
+		'cert_issue_exchange_rolls_form' => array(
+			'render element' => 'form', 
+		),
 	);
 }
 
@@ -60,6 +77,14 @@ function cert_issue_menu() {
 		'page arguments' => array('cert_issue_massiveupload_form'),
 		'access callback' => 'user_access',
 		'access arguments'=> array('preload certificates'),
+	);
+	$items['certificate/exchangerolls'] = array(
+		'title' => 'Certificates Exchange Roll Management',
+		'weight' => 4,
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('cert_issue_exchange_rolls_form'),
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates exchange rolls'),
 	);
 	$items['user/certs'] = array(
 		'title' => 'My certificates',
@@ -761,5 +786,246 @@ function cert_issue_user_claim_form_submit($form, &$form_state) {
 		drupal_set_message(t('You claimed !num certificates.', array('!num'=>$i)));
 	if(!cert_issue_user_claim_access())
 		$form_state['redirect']='user/certs';
+}
+
+function cert_issue_exchange_rolls_form($form, &$form_state) {
+	$form=array();
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline')
+	);
+
+	$form['addrolls']=array(
+		'#type' => 'fieldset',
+		'#title' => t('Add new roll for certificates exchange'),
+		'#collapsible' => TRUE,
+	);
+	$query=db_select('certificates','c')->fields('c')->orderBy('c.series')->orderBy('c.cid');
+	$subquery=db_select('certificates_exchange_rolls','cer')->fields('cer')->where('cer.cid=c.cid')->condition('cer.status',2);
+	$query->notExists($subquery);
+	$rdbo=$query->execute();
+	$options=array();
+	foreach($rdbo as $r) {
+		$options+=array(
+			(string)$r->cid=>sprintf("%s - %s",$r->series, $r->name)
+		);
+	}
+	$form['addrolls']['cid_prefix']=array(
+		'#type' => 'item',
+		'#title' => t('Student may apply'),
+		'#required' => TRUE,
+	);
+	$form['addrolls']['cid']=array(
+		'#type' => 'select',
+		'#options' => $options,
+		'#title' => t('New certificate'),
+		'#title_display' => 'invisible',
+		'#required' => TRUE,
+		'#default_value' => NULL,
+	);
+	$form['addrolls']['cid_orig_prefix']=array(
+		'#type' => 'item',
+		'#title' => t(', if he has a valid'),
+		'#required' => TRUE,
+	);
+	$query=db_select('certificates','c')->fields('c')->orderBy('c.series')->orderBy('c.cid');
+	$rdbo=$query->execute();
+	$options=array();
+	foreach($rdbo as $r) {
+		$options+=array(
+			(string)$r->cid=>sprintf("%s - %s",$r->series, $r->name)
+		);
+	}
+	$form['addrolls']['cid_orig']=array(
+		'#type' => 'select',
+		'#title' => t('Old certificate'),
+		'#title_display' => 'invisible',
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => NULL,
+	);
+	$options=array('0'=>t('nothing else'))+$options;
+	$form['addrolls']['ccid_orig_extra_prefix']=array(
+		'#type' => 'item',
+		'#title' => t('and'),
+		'#required' => TRUE,
+	);
+	$form['addrolls']['cid_orig_extra']=array(
+		'#type' => 'select',
+		'#title' => t('Old certificate'),
+		'#title_display' => 'invisible',
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => '-1',
+	);
+	$form['addrolls']['enabled']=array(
+		'#type' => 'checkbox',
+		'#title' => t('Make it enabled for students to apply right now'),
+		'#default_value' => TRUE,
+		'#description' => t('You can only close (end) a roll, after enabling it.'),
+	);
+	$form['addrolls']['save']=array(
+		'#type' => 'submit',
+		'#value' => t('Add roll'),
+	);
+	$form['#attached']['css'][]=array(
+		'data'=>'div.form-item-enabled div.description {color: red; font-weight: bold;}',
+		'type'=>'inline'
+	);
+
+	$header=array(
+		array('data' => t('Series'), 'field'=> 'series'),
+		array('data' => t('Specification'), 'field'=> 'name'),
+		array('data' => t('Exchange requirements'), 'field'=> 'name'),
+		array('data' => t('Status'), 'field'=> 'status_mod', 'sort'=>'desc'),
+		array('data' => t('Operation')),
+	);
+	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')
+		->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);
+	$query->innerJoin('certificates','c','c.cid=cer.cid');
+	$query->addExpression('1-MOD(cer.status,2)','status_mod');
+	$query->fields('c',array('series','name'));
+	$form['rolls']=array(
+		'#type' => 'fieldset',
+	);
+	$form['rolls']['title']=array(
+		'#type' => 'item',
+		'#title' => t('Existing rolls'),
+	);
+	$rdbo=$query->execute();
+	$form['addrolls']['#collapsed']=$rdbo->rowCount();
+	$form['rolls']['cerid']=array();
+	foreach($rdbo as $r) {
+		$form['rolls']['cerid'][$r->cerid]=array('#type'=>'hidden','#value'=>$r->cerid);
+		$form['rolls']['series'][$r->cerid]=array('#markup'=>$r->series);
+		$form['rolls']['name'][$r->cerid]=array('#markup'=>$r->name);
+		$cid_orig=json_decode($r->cid_orig);
+		$cids=array();
+		foreach($cid_orig as $cid) {
+			$cids[]=db_select('certificates','c')->condition('c.cid',$cid)->fields('c',array('name'))->execute()->fetchField();
+		}
+		if(count($cids)>1)
+			$c='<ul><li>'.implode('</li><li>',$cids).'</li></ul>';
+		else
+			$c=$cids[0];
+		$form['rolls']['cid_orig'][$r->cerid]=array('#markup'=>$c);
+		switch($r->status) {
+			case 0: // it is not enabled.
+				$form['rolls']['status'][$r->cerid]=array('#markup'=>t('Openable'));
+				$form['rolls']['submit'.$r->cerid]=array(
+					'#type' => 'submit',
+					'#value' => t('Open'),
+					'#name' => 'open'.$r->cerid,
+					'#limit_validation_errors'=>array(),
+					'#submit' => array('cert_issue_exchange_rolls_form_open_submit'),
+				);
+				break;
+			case 2: // it is not open.
+				$form['rolls']['status'][$r->cerid]=array('#markup'=>t('Ongoing'));
+				$form['rolls']['submit'.$r->cerid]=array(
+					'#type' => 'submit',
+					'#name' => 'close'.$r->cerid,
+					'#value' => t('Close'),
+					'#limit_validation_errors'=>array(),
+					'#submit' => array('cert_issue_exchange_rolls_form_close_submit'),
+				);
+				break;
+			case 1: // it is closed
+				$form['rolls']['status'][$r->cerid]=array('#markup'=>t('Closed'));
+				$form['rolls']['submit'.$r->cerid]=array('#markup'=>'');
+		}
+	}
+
+	return $form;
+}
+
+function theme_cert_issue_exchange_rolls_form($variables) {
+	$form=$variables['form'];
+	$output ='';
+	$output .= drupal_render($form['addrolls']);
+	$output .= drupal_render($form['rolls']['title']);
+	unset($form['rolls']['title']);
+	$header=array(
+		array('data' => t('Series'), 'field'=> 'series'),
+		array('data' => t('Specification'), 'field'=> 'name'),
+		array('data' => t('Exchange requirements'), 'field'=> 'name'),
+		array('data' => t('Status'), 'field'=> 'status_mod', 'sort'=>'desc'),
+		array('data' => t('Operation')),
+	);
+	$rows=array();
+	foreach($form['rolls']['cerid'] as $cer) {
+		if(!isset($cer['#type']) || $cer['#type']!='hidden') continue;
+		$cerid=$cer['#value'];
+		$rows[]=array(
+			drupal_render($form['rolls']['series'][$cerid]),
+			drupal_render($form['rolls']['name'][$cerid]),
+			drupal_render($form['rolls']['cid_orig'][$cerid]),
+			drupal_render($form['rolls']['status'][$cerid]),
+			drupal_render($form['rolls']['submit'.$cerid]),
+		);
+	}
+	if(!empty($rows))
+		$output.=theme('table',array('header'=>$header,'rows'=>$rows,'empty'=>t('There is no defined rolls.')));
+	unset($form['rolls']);
+	$output.=drupal_render_children($form);
+	$output .= theme('pager');
+	return $output;
+}
+
+function cert_issue_exchange_rolls_form_validate($form, $form_state) {
+	if(empty($form_state['values']['cid']) || empty($form_state['values']['cid_orig'])) return;
+	if($form_state['values']['cid']==$form_state['values']['cid_orig']) {
+		form_set_error('cid');
+		form_set_error('cid_orig', t('You cannot select the same value for both new and old certificate.'));
+	}
+	else if($form_state['values']['cid']==$form_state['values']['cid_orig_extra']) {
+		form_set_error('cid');
+		form_set_error('cid_orig_extra', t('You cannot select the same value for both new and old certificate.'));
+	}
+	else if($form_state['values']['cid_orig']==$form_state['values']['cid_orig_extra']) {
+		form_set_error('cid_orig');
+		form_set_error('cid_orig_extra', t('You cannot select the same value for both old certificates.'));
+	} else {
+		$query=db_select('certificates_exchange_rolls','cer')->fields('cer')
+			->condition('cer.cid',$form_state['values']['cid'])->condition('cer.status',1);
+		if($query->countQuery()->execute()->fetchField())
+			form_set_error('cid', t('There is ongoing certificate exchange roll with the same new certificate.'));
+	}
+}
+
+function cert_issue_exchange_rolls_form_submit($form, $form_state) {
+	$cid_orig=array((int)$form_state['values']['cid_orig']);
+	if($form_state['values']['cid_orig_extra'])
+		$cid_orig+=(int)$form_state['values']['cid_orig_extra'];
+	db_merge('operations')->key(array('oid'=>date('Ym')))->insertFields(array(
+		'oid'=>date('Ym'),
+		'year'=>date('Y'),
+		'name'=>t('!year !month cert exchange',array('!year'=>date('Y'), '!month'=>date('n'))),
+	))->execute(); 
+	$r=db_insert('certificates_exchange_rolls')->fields(array(
+		'cid' => $form_state['values']['cid'],
+		'cid_orig' => json_encode($cid_orig),
+		'status' => $form_state['values']['enabled']?2:0,
+	))->execute();
+	if($r)
+		if($form_state['values']['enabled'])
+			drupal_set_message(t('Roll added and published.'));
+		else
+			drupal_set_message(t('Roll added.'));
+}
+
+function cert_issue_exchange_rolls_form_open_submit($form, $form_state) {
+	$cerid=substr($form_state['triggering_element']['#name'],4);
+	db_update('certificates_exchange_rolls')->fields(array(
+		'status'=>2
+	))->condition('cerid',$cerid)->execute();
+	drupal_set_message(t('Roll opened.'));
+}
+
+function cert_issue_exchange_rolls_form_close_submit($form, $form_state) {
+	$cerid=substr($form_state['triggering_element']['#name'],5);
+	db_update('certificates_exchange_rolls')->fields(array(
+		'status'=>1
+	))->condition('cerid',$cerid)->execute();
+	drupal_set_message(t('Roll closed.'));
 }
 ?>
