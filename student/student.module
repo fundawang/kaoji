@@ -162,7 +162,7 @@ function student_user_account_form(&$form, $form_state) {
 	$form['account']['#collapsed']=TRUE;
 	$form['account']['#title'] = t('Change Password');
 
-	$defaults=db_select('students','s')->condition('s.uid',$user->uid)->fields('s')->execute()->fetchObject();
+	$defaults=student_load($user);
 
 	$form['personal'] = array(
 		'#type' => 'fieldset',
@@ -262,11 +262,8 @@ function student_user_account_form(&$form, $form_state) {
 		$form['personal']['current_photo'] = array(
 			'#type' => 'item',
 			'#title' => t('Current Picture'),
-			'#markup' => '<img src="data:image/jpeg;base64,'.$defaults->picture.'" style="padding-right: 10px"/>'
+			'#markup' => sprintf('<img src="%s" style="padding-right: 10px"/>', $student->picture),
 		);
-		if(preg_match('/(?i)msie [1-8]/',$_SERVER['HTTP_USER_AGENT'])) {
-			$form['personal']['current_photo']['#markup'] = sprintf('<img src="/user/%s/%s/picture.jpg" style="padding-right: 10px"/>', $user->uid, substr(md5($defaults->picture),0,4));
-		}
 	}
 	$form['personal']['photo'] = array(
 		'#type' => 'managed_file',
@@ -407,8 +404,14 @@ function student_user_account_form_save($form, $form_state) {
  * Implementation of object_load().
  */
 function student_load($user) {
-	if($user && $user->uid)
-		return db_select('students','s')->condition('s.uid',$user->uid)->fields('s')->execute()->fetchObject();
+	if($user && $user->uid) {
+		$obj=db_select('students','s')->condition('s.uid',$user->uid)->fields('s')->execute()->fetchObject();
+		if(preg_match('/(?i)msie [1-8]/',$_SERVER['HTTP_USER_AGENT'])) {
+			$url=sprintf('user/%s/%s/picture.jpg', $obj->uid, substr(md5($obj->picture),0,4));
+			$obj->picture=base_path().$url;
+		} else $obj->picture='data:image/jpeg;base64,'.$obj->picture;
+		return $obj;
+	}
 	else return FALSE;
 }
 
