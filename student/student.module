@@ -406,6 +406,7 @@ function student_user_account_form_save($form, $form_state) {
 function student_load($user) {
 	if($user && $user->uid) {
 		$obj=db_select('students','s')->condition('s.uid',$user->uid)->fields('s')->execute()->fetchObject();
+		if(!$obj) return FALSE;
 		if(preg_match('/(?i)msie [1-8]/',$_SERVER['HTTP_USER_AGENT'])) {
 			$url=sprintf('%suser/%s/%s/picture.jpg', base_path(), $obj->uid, substr(md5($obj->picture),0,4));
 			$obj->picture=$url;
