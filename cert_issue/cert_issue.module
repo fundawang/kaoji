@@ -1154,8 +1154,14 @@ function cert_issue_user_exchange_form($form, $form_state, $cer) {
 		'#type' => 'checkbox',
 		'#title' => t('I have confirmed above information, there is no need to do furture modifications.'),
 		'#description' => t('If you want to modify your personal information, please go !url.',
-			array('!url'=>l('here', 'user/'.$user->uid.'/edit'))),
+			array('!url'=>l(t('here'), 'user/'.$user->uid.'/edit'))),
 		'#required' => TRUE,
+	);
+	$form['cancel']=array(
+		'#type' => 'submit',
+		'#value' => t('Cancel'),
+		'#submit' => array('cert_issue_user_exchange_form_cancel'),
+		'#limit_validation_errors' => array(),
 	);
 	$form['submit']=array(
 		'#type' => 'submit',
@@ -1167,5 +1173,9 @@ function cert_issue_user_exchange_form($form, $form_state, $cer) {
 		),
 	);
 	return $form;
+}
+
+function cert_issue_user_exchange_form_cancel($form, &$form_state) {
+	$form_state['redirect'] = 'user/exchange';
 }
 ?>
