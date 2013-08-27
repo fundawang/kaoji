@@ -118,8 +118,8 @@ function cert_issue_menu() {
 		'type' => MENU_CALLBACK,
 		'title callback' => 'cert_issue_user_exchange_form_title', 
 		'title arguments' => array(2),
-		'page callback' => 'cert_issue_user_exchange_form',
-		'page arguments' => array(2),
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('cert_issue_user_exchange_form', 2),
 		'access callback' => 'cert_issue_user_exchange_form_access',
 		'access arguments'=> array(2),
 	);
@@ -1102,5 +1102,70 @@ function cert_issue_user_exchange_form_access($cer) {
 		if($query->fetchField()==0) return FALSE;
 	}
 	return TRUE;
+}
+
+function cert_issue_user_exchange_form($form, $form_state, $cer) {
+	$user=$GLOBALS['user'];
+	$form=array();
+	$certs=array();
+	foreach($cer->cid_orig as $cid) {
+		$query=db_select('certificates_issues','ci')->fields('ci',array('certid'));
+		$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
+		$query->condition('co.cid',$cid)->orderBy('ci.issuedate','desc');
+		$query->innerJoin('certificates','c','c.cid=co.cid');
+		$query->fields('c',array('series','name'));
+		$r=$query->execute()->fetchObject();
+		$certs[]=sprintf('%s %s', $r->series, $r->name).'<br/>'.t('No. @certid', array('@certid'=>$r->certid));
+	}
+	if(count($certs)>1)
+		$certs_str='<ul><li>'.implode('</li><li>',$certs).'</li></ul>';
+	else
+		$certs_str=$certs[0];
+	$form['cid_orig']=array(
+		'#type' => 'item',
+		'#title' => t('Your old certificates'),
+		'#markup' => $certs_str,
+	);
+
+	$r=db_select('certificates','c')->fields('c')->condition('c.cid',$cer->cid)->execute()->fetchObject();
+	$form['cid']=array(
+		'#type' => 'item',
+		'#title' => t('Will be exchanged to certificates'),
+		'#markup' => sprintf('%s %s', $r->series, $r->name),
+	);
+	$student=student_load($user);
+	$form['name']=array(
+		'#type' => 'item',
+		'#title' => t('Your Name'),
+		'#markup' => sprintf('%s<br/>%s', $student->name, $student->foreign_name),
+		'#prefix' => sprintf('<img src="%s" height="150" align="left" style="margin-right: 30px;"/>', $student->picture),
+	);
+	$form['idcard']=array(
+		'#type' => 'item',
+		'#title' => t('Your IDCard number'),
+		'#markup' => $student->idcard_number,
+	);
+	$form['birthdate']=array(
+		'#type' => 'item',
+		'#title' => t('Your birth date'),
+		'#markup' => $student->date_of_birth,
+	);
+	$form['confirm']=array(
+		'#type' => 'checkbox',
+		'#title' => t('I have confirmed above information, there is no need to do furture modifications.'),
+		'#description' => t('If you want to modify your personal information, please go !url.',
+			array('!url'=>l('here', 'user/'.$user->uid.'/edit'))),
+		'#required' => TRUE,
+	);
+	$form['submit']=array(
+		'#type' => 'submit',
+		'#value' => t('Apply for certificate exchange'),
+		'#states' => array(
+			'visible' => array(
+				':input[name="confirm"]' => array('checked' =>TRUE),
+			),
+		),
+	);
+	return $form;
 }
 ?>
