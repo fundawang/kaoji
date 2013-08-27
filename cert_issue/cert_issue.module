@@ -999,7 +999,7 @@ function cert_issue_exchange_rolls_form_validate($form, $form_state) {
 function cert_issue_exchange_rolls_form_submit($form, $form_state) {
 	$cid_orig=array((int)$form_state['values']['cid_orig']);
 	if($form_state['values']['cid_orig_extra'])
-		$cid_orig+=(int)$form_state['values']['cid_orig_extra'];
+		$cid_orig[]=(int)($form_state['values']['cid_orig_extra']);
 	db_merge('operations')->key(array('oid'=>date('Ym')))->insertFields(array(
 		'oid'=>date('Ym'),
 		'year'=>date('Y'),
