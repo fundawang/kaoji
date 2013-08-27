@@ -151,10 +151,10 @@ function certificate_specification_form($form, $form_state) {
 			'#size' => 30,
 			'#states' => array(
 				'visible' => array(
-					':input[name="series"]' => array('value' =>0),
+					':input[name="series"]' => array('value' =>'0'),
 				),
 				'required' => array(
-					':input[name="series"]' => array('value' =>0),
+					':input[name="series"]' => array('value' =>'0'),
 				),
 			),
 		);
@@ -198,7 +198,8 @@ function certificate_specification_form($form, $form_state) {
 	$form['c_name']=array('#type'=>'hidden','#value'=>$certificate?$certificate->name:'');
 	$form['#attached']['js'][]= array('data'=>
 		'jQuery(document).ready(function(){'.
-			'jQuery("#edit-series").val(jQuery(":input[name=\"c_series\"]").val());'.
+			'if(jQuery(":input[name=\"c_series\"]").val()!="") jQuery("#edit-series").val(jQuery(":input[name=\"c_series\"]").val());'.
+			'else jQuery("#edit-series").val("0");'.
 			'jQuery("#edit-name").val(jQuery(":input[name=\"c_name\"]").val());'.
 			'jQuery("#edit-series").change();'.
 			'});'.
@@ -231,6 +232,11 @@ function certificate_specification_form($form, $form_state) {
 		$form['existing']['delete'.$r->cid]=array('#type'=>'submit','#submit'=>array('certificate_specification_form_delete_submit'),'#limit_validation_errors'=>array(),'#name'=>'delete_'.$r->cid,'#value'=>t('Delete'));
 	}
 	return $form;
+}
+
+function certificate_specification_form_validate($form, $form_state) {
+	if($form_state['values']['series']=='0' && trim($form_state['values']['series_input'])==FALSE)
+		form_set_error('series_input', t('Series name is required.'));
 }
 
 function certificate_specification_form_submit($form, $form_state) {
