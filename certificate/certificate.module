@@ -112,9 +112,8 @@ function certificate_specification_form($form, $form_state) {
 			->execute()->fetchObject();
 	} else $certificate=FALSE;
 
-	drupal_add_css(
-		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }',
-		'inline'
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline')
 	);
 
 	$form['addnotice']=array(
@@ -159,7 +158,7 @@ function certificate_specification_form($form, $form_state) {
 				),
 			),
 		);
-		drupal_add_js(
+		$form['#attached']['js'][]=array('data'=>
 			'jQuery(document).ready(function(){'.
 				'jQuery("#edit-series").change(function(){ '.
 				'if(jQuery("#edit-series").val()==0) {'.
@@ -169,8 +168,7 @@ function certificate_specification_form($form, $form_state) {
 					'}'.
 				'});'. // end series.change function()
 				'});'. // end document ready function()
-				'',
-			'inline'
+				'','type' => 'inline'
 		);
 	}
 	else {
@@ -198,15 +196,13 @@ function certificate_specification_form($form, $form_state) {
 	);
 	$form['c_series']=array('#type'=>'hidden','#value'=>$c_series);
 	$form['c_name']=array('#type'=>'hidden','#value'=>$certificate?$certificate->name:'');
-	drupal_add_js(
+	$form['#attached']['js'][]= array('data'=>
 		'jQuery(document).ready(function(){'.
-			//'alert(jQuery(":input[name=\"c_series\"]").val());'.
 			'jQuery("#edit-series").val(jQuery(":input[name=\"c_series\"]").val());'.
 			'jQuery("#edit-name").val(jQuery(":input[name=\"c_name\"]").val());'.
 			'jQuery("#edit-series").change();'.
-			'});'. // end document ready function()
-			'',
-		'inline'
+			'});'.
+			'', 'type'=>'inline'
 	);
 	$form['save']=array(
 		'#type' => 'submit',
