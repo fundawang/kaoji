@@ -536,7 +536,6 @@ function student_form_user_pass_submit($form, &$form_state) {
 	db_delete('flood')
 		->condition('identifier',$uid.'-%','LIKE')
 		->execute();
-	//exit;
 	
 	drupal_set_message(t('Based on your request, we\'ve reset <span class="error">!name</span>\'s password. Your new password is <span class="error"><tt>!pass</tt></span>. '.
 		'Please write it down and keep it in a safe place. Or, you can change it right now.', array('!name' => $account->name, '!pass' => $newpass)));
