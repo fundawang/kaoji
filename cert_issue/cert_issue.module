@@ -808,7 +808,7 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 	$query=db_select('certificates','c')->fields('c')->orderBy('c.series')->orderBy('c.cid');
 	$subquery=db_select('certificates_exchange_rolls','cer')->fields('cer');
 	$subquery->innerJoin('certificates_operations','co','cer.coid=co.coid');
-	$subquery->where('co.cid=c.cid')->condition('cer.status',2);
+	$subquery->where('co.cid=c.cid AND (cer.status=2 OR cer.status=0)');
 	$query->notExists($subquery);
 	$rdbo=$query->execute();
 	$options=array();
@@ -992,10 +992,6 @@ function cert_issue_exchange_rolls_form_validate($form, $form_state) {
 	else if($form_state['values']['cid_orig']==$form_state['values']['cid_orig_extra']) {
 		form_set_error('cid_orig');
 		form_set_error('cid_orig_extra', t('You cannot select the same value for both old certificates.'));
-	} else {
-		$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_exchange_rolls} WHERE cid=:cid AND status=2)', array(':cid'=>$form_state['values']['cid']));
-		if($query->fetchField())
-			form_set_error('cid', t('There is ongoing certificate exchange roll with the same new certificate.'));
 	}
 }
 
@@ -1018,7 +1014,6 @@ function cert_issue_exchange_rolls_form_submit($form, $form_state) {
 	$coid=db_select('certificates_operations','co')->condition('co.cid',$form_state['values']['cid'])->condition('co.oid',$oid)
 		->fields('co',array('coid'))->execute()->fetchField();
 	$r=db_insert('certificates_exchange_rolls')->fields(array(
-		'cid' => $form_state['values']['cid'],
 		'cid_orig' => json_encode($cid_orig),
 		'coid' => $coid,
 		'status' => $form_state['values']['enabled']?2:0,
