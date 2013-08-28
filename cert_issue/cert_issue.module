@@ -881,7 +881,7 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 	$header=array(
 		array('data' => t('Series'), 'field'=> 'series'),
 		array('data' => t('Specification'), 'field'=> 'name'),
-		array('data' => t('Exchange requirements'), 'field'=> 'name'),
+		array('data' => t('Exchange requirements')),
 		array('data' => t('Status'), 'field'=> 'status', 'sort'=>'desc'),
 		array('data' => t('Operation')),
 	);
