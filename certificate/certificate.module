@@ -108,8 +108,7 @@ function certificate_specification_form($form, $form_state) {
 	$form=array();
 	if(isset($form_state['storage']['cid'])) {
 		$form['cid']=array('#type'=>'hidden','#value'=>$form_state['storage']['cid']);
-		$certificate=db_select('certificates','c')->fields('c')->condition('c.cid',$form_state['storage']['cid'])
-			->execute()->fetchObject();
+		$certificate=db_query('SELECT * FROM {certificates} WHERE cid=:cid',array(':cid'=>$form_state['storage']['cid']))->fetchObject();
 	} else $certificate=FALSE;
 
 	$form['#attached']['css']=array(
@@ -121,7 +120,7 @@ function certificate_specification_form($form, $form_state) {
 	);
 
 	$series=array();
-	$dbo=db_select('certificates','c')->fields('c',array('series'))->groupBy('c.series')->execute();
+	$dbo=db_query('SELECT DISTINCT series FROM {certificates}');
 	$i=1;
 	$c_series=1;
 	foreach($dbo as $r) {
@@ -242,9 +241,7 @@ function certificate_specification_form_validate($form, $form_state) {
 function certificate_specification_form_submit($form, $form_state) {
 	// if cid is not set, then add new specification
 	if(!isset($form_state['storage']['cid'])) {
-		$query=db_select('certificates','c');
-		$query->addExpression('MAX(c.cid)','num');
-		$i=$query->execute()->fetchField();
+		$i=db_query('SELECT MAX(cid) FROM {certificates}')->fetchField();
 		db_insert('certificates')->fields(array(
 			'cid' => $i+1,
 			'series' => $form_state['values']['series_input'],
@@ -321,15 +318,11 @@ function certificate_operations_form($form, $form_state) {
 }
 
 function certificate_operations_load($cid, $oid) {
-	$query=db_select('certificates_operations','co')->fields('co')
-		->condition('co.oid',$oid)
-		->condition('co.cid',$cid);
-	$query->innerJoin('operations','o','o.oid=co.oid');
-	$query->innerJoin('certificates','c','c.cid=co.cid');
-	$query->addExpression('c.name','cname');
-	$query->addExpression('o.name','oname');
-	$query->fields('c',array('series'));
-	return $query->execute()->fetchObject();
+	$query=db_query('SELECT co.*, c.name AS cname, o.name as oname, c.series FROM {certificates_operations} co '.
+		'INNER JOIN {operations} o ON o.oid=co.oid '.
+		'INNER JOIN {certificates} c ON c.cid=co.cid '
+	);
+	return $query->fetchObject();
 }
 
 ?>
