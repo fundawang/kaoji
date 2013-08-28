@@ -133,7 +133,7 @@ function snailmail_form_cert_issue_user_exchange_form_submit($form, &$form_state
 }
 
 function snailmail_form_alter(&$form, &$form_state, $form_id) {
-	drupal_set_message($form_id); 
+	//drupal_set_message($form_id); 
 }
 
 ?>
