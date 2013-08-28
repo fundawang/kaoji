@@ -1,0 +1,5 @@
+name = Snail Mail track and address managements
+description = Snail Mail track and address managements
+package = Kaoji
+core = 7.x
+version = "7.x-0.1"

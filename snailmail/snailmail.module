@@ -1,0 +1,139 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+*/
+
+function snailmail_form_cert_issue_user_exchange_form_alter(&$form, &$form_state) {
+	$query=db_select('snailmail_addresses','sma')->fields('sma')
+		->condition('sma.uid',$GLOBALS['user']->uid)->orderBy('sma.smaid');
+	$options=array();
+	$rdbo=$query->execute();
+	foreach($rdbo as $r) {
+		$options+=array(
+			$r->smaid => sprintf('%s / %s / %s / %s', $r->address, $r->recipient, $r->zipcode, $r->phonenumber)
+		);
+	}
+	if(!empty($options)) {
+		$options+=array('0' => t('New address'));
+		$keys=array_keys($options);
+		$form['address_select']=array(
+			'#type' => 'radios',
+			'#title' => t('Use one of the saved address'),
+			'#required' => TRUE,
+			'#default_value' => $keys[0],
+			'#options' => $options,
+			'#states' => array(
+				'visible' => array(
+					':input[name="confirm"]' => array('checked' =>TRUE),
+				),
+			),
+		);
+	} else {
+		$form['address_select']=array('#type' => 'hidden', '#value' => '0');
+		$form['address_text']=array(
+			'#type' => 'item',
+			'#title' => t('Please fill your address for snail mail'),
+			'#states' => array(
+				'visible' => array(
+					':input[name="address_select"]' => array('value' =>'0'),
+					':input[name="confirm"]' => array('checked' =>TRUE),
+				),
+			),
+		);
+	}
+	$form['address'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Mail Address'),
+		'#states' => array(
+			'visible' => array(
+				':input[name="address_select"]' => array('value' =>'0'),
+				':input[name="confirm"]' => array('checked' =>TRUE),
+			),
+			'required' => array(
+				':input[name="address_select"]' => array('value' => '0'),
+			),
+		),
+	);
+	$form['zipcode'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Zipcode'),
+		'#maxlength' => 6,
+		'#states' => array(
+			'visible' => array(
+				':input[name="address_select"]' => array('value' =>'0'),
+				':input[name="confirm"]' => array('checked' =>TRUE),
+			),
+			'required' => array(
+				':input[name="address_select"]' => array('value' => '0'),
+			),
+		),
+	);
+	$form['recipient'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Recipient'),
+		'#maxlength' => 30,
+		'#states' => array(
+			'visible' => array(
+				':input[name="confirm"]' => array('checked' =>TRUE),
+				':input[name="address_select"]' => array('value' =>'0'),
+			),
+			'required' => array(
+				':input[name="address_select"]' => array('value' => '0'),
+			),
+		),
+	);
+	$form['phonenumber'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Phone number'),
+		'#maxlength' => 30,
+		'#states' => array(
+			'visible' => array(
+				':input[name="confirm"]' => array('checked' =>TRUE),
+				':input[name="address_select"]' => array('value' =>'0'),
+			),
+			'required' => array(
+				':input[name="address_select"]' => array('value' => '0'),
+			),
+		),
+	);
+	$form['#validate'][]='snailmail_form_cert_issue_user_exchange_form_validate';
+	$form['#submit'][]='snailmail_form_cert_issue_user_exchange_form_submit';
+}
+
+function snailmail_form_cert_issue_user_exchange_form_validate($form, $form_state) {
+	if(isset($form_state['values']['address_select']) && $form_state['values']['address_select']=='0') {
+		foreach(array('address', 'zipcode', 'recipient', 'phonenumber') as $key)
+			if(empty($form_state['values'][$key]) or !trim($form_state['values'][$key]))
+				form_set_error($key,t('!name field is required.',array('!name'=>$form[$key]['#title'])));
+	}
+}
+
+function snailmail_form_cert_issue_user_exchange_form_submit($form, &$form_state) {
+	if($form_state['values']['address_select']=='0') {
+		$smaid=db_insert('snailmail_addresses')->fields(array(
+			'uid' => $GLOBALS['user']->uid,
+			'address' => trim($form_state['values']['address']),
+			'zipcode' => trim($form_state['values']['zipcode']),
+			'recipient' => trim($form_state['values']['recipient']),
+			'phonenumber' => trim($form_state['values']['phonenumber']),
+		))->execute();
+	} else
+		$smaid=$form_state['values']['address_select'];
+	db_merge('snailmail_usage')->key(array(
+		'module' => 'cert_issue',
+		'type' => $GLOBALS['user']->uid,
+		'keyword' => $form_state['values']['ciid']
+	))->fields(array(
+		'module' => 'cert_issue',
+		'type' => $GLOBALS['user']->uid,
+		'keyword' => $form_state['values']['ciid'],
+		'smaid' => $smaid,
+	))->execute();
+}
+
+function snailmail_form_alter(&$form, &$form_state, $form_id) {
+	drupal_set_message($form_id); 
+}
+
+?>

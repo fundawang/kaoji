@@ -1,0 +1,59 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+*/
+
+/**
+ * Implementation of hook_schema().
+ */
+function snailmail_schema() {
+	$schema['snailmail_addresses'] = array(
+		'description' => t('This table stores the addresses filled by users.'),
+		'fields' => array(
+			'smaid' => array('type' => 'serial', 'not null' => TRUE),
+			'uid' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+			'address' => array('type' => 'varchar', 'length' => '500', 'not null' => TRUE, 'default' => ''),
+			'zipcode' => array('type' => 'varchar', 'length' => '6', 'not null' => TRUE, 'default' => ''),
+			'recipient' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE, 'default' => ''),
+			'phonenumber' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE, 'default' => ''),
+		),
+		'primary key' => array('smaid'),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'phonnumber' => array('phonenumber'),
+		),
+		'foreign keys' => array(
+			'uid' => array(
+				'table' => 'users',
+				'columns' => array('uid' => 'uid'),
+			),
+		),
+	);
+	$schema['snailmail_usage'] = array(
+		'description' => t('This table stores the relationship between snailmail and other modules.'),
+		'fields' => array(
+			'smuid' => array('type' => 'serial', 'not null' => TRUE),
+			'module' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
+			'type' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
+			'keyword' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
+			'smaid' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+		),
+		'primary key' => array('smuid'),
+		'unique keys' => array(
+			'mtk' => array('module', 'type', 'keyword'),
+		),
+		'indexes' => array(
+			'module' => array('module'),
+			'type' => array('type'),
+			'keyword' => array('keyword'),
+		),
+		'foreign keys' => array(
+			'smaid' => array(
+				'table' => 'snailmail_addresses',
+				'columns' => array('smaid' => 'smaid'),
+			),
+		),
+	);
+	return $schema;
+}
