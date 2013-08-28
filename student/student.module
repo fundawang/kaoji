@@ -411,6 +411,143 @@ function student_user_account_form_save($form, $form_state) {
 		}
 }
 
+function student_form_user_pass_alter(&$form, &$form_state) {
+	if(user_access('administer users')) return;
+	if($GLOBALS['user']->uid>=2) {
+		unset($form['name']);
+		unset($form['mail']);
+		unset($form['actions']);
+		$form['mail']=array(
+			'#type'=>'item',
+			'#markup'=>t('You must be logged out before resetting password.'),
+		);
+		$form['logout']=array(
+			'#type'=>'item',
+			'#markup'=>l(t('Logout and request new password'), 'user/logout', array('query' => array('destination' => 'user/password'))),
+		);
+		unset($form['captcha']);
+		
+		return;
+	}
+
+	unset($form['name']);
+	unset($form['mail']);
+	$form["actions"]['submit']['#value']=t('Reset password');
+	$form["actions"]['submit']['#weight']=10;
+	
+	$form['notice'] = array(
+		'#type' => 'markup',
+		'#markup' => t('You\'ll have to provide following information when reseting password. ID Card Number is required here.'),
+		'#weight'=>'0',
+	);
+	$form['idnumber'] = array(
+		'#title' => t('Your ID Card Number'),
+		'#type' => 'textfield',
+		'#size' => '60',
+		'#maxlength' => 18,
+		'#weight' => 1,
+		'#required' => TRUE,
+	);
+	$form['condselect'] = array(
+		'#type' => 'radios',
+		'#options' => array( '1' => t('I know the username'), '2' => t('I\'ve forgotten the username')),
+		'#default_value' => '1',
+		'#weight' => 2,
+	);
+	$form['sid'] = array(
+		'#title' => t('Your username'),
+		'#type' => 'textfield',
+		'#size' => '60',
+		'#weight' => 3,
+		'#states' => array(
+			'visible' => array(
+				'input[name="condselect"]' => array('value' =>'1'),
+			),
+			'required' => array(
+				'input[name="condselect"]' => array('value' =>'1'),
+			)
+		),
+	);
+	$form['name'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Your Name'),
+		'#size' => '60',
+		'#weight' => 3,
+		'#states' => array(
+			'visible' => array(
+				'input[name="condselect"]' => array('value' =>'2'),
+			),
+			'required' => array(
+				'input[name="condselect"]' => array('value' =>'2'),
+			)
+		),
+	);
+	$form['#validate']=array('student_form_user_pass_validate');
+	$form['#submit']=array('student_form_user_pass_submit');
+	drupal_set_title(t('Reset password'));
+}
+
+function student_form_user_pass_validate($form, &$form_state) {
+	if($form_state['values']['condselect']==1) {
+		if(trim($form_state['values']['sid']) == '') {
+			form_set_error('sid', t('!name field is required.', array('!name'=>$form['sid']['#title'])));
+			return;
+		}
+	} else {
+		if(trim($form_state['values']['name']) == '') {
+			form_set_error('name', t('!name field is required.', array('!name'=>$form['name']['#title'])));
+			return;
+		}
+	}
+	
+	if($form_state['values']['condselect']==1) {
+		$query=db_query('SELECT EXISTS( SELECT * FROM {users} u INNER JOIN {students} s ON u.uid=s.uid '.
+			'WHERE u.name=:username AND s.idcard_number=:idcardnumber)',
+			array(':username'=>$form_state['values']['sid'], ':idcardnumber'=>$form_state['values']['idnumber'])
+		);
+		if(!$query->fetchField()) {
+			form_set_error('sid', t('Sorry, the username and the IDCard number do not meet our records.'));
+			return;
+		}
+	} else {
+		$query=db_query('SELECT EXISTS( SELECT * FROM {students} s WHERE s.name=:username AND s.idcard_number=:idcardnumber)',
+			array(':username'=>$form_state['values']['name'], ':idcardnumber'=>$form_state['values']['idnumber'])
+		);
+		if(!$query->fetchField()) {
+			form_set_error('name', t('Sorry, the Name and the IDCard number do not meet our records.'));
+			return;
+		}
+	}
+}
+
+function student_form_user_pass_submit($form, &$form_state) {
+	// We will detect users based on one's IDCard number and his realname.
+	$query = db_select('users', 'u');
+	$query->innerjoin('students', 's', 'u.uid=s.uid');
+	$query = $query
+		->fields('u',array('uid'))
+		->condition('s.idcard_number', $form_state['values']['idnumber']);
+	$uid=$query->execute()->fetchField();
+	$account = user_load($query->execute()->fetchField());
+	$newpass = user_password(6);
+
+	user_save($account, array('pass'=>$newpass));
+	
+	db_delete('flood')
+		->condition('identifier',$uid.'-%','LIKE')
+		->execute();
+	//exit;
+	
+	drupal_set_message(t('Based on your request, we\'ve reset <span class="error">!name</span>\'s password. Your new password is <span class="error"><tt>!pass</tt></span>. '.
+		'Please write it down and keep it in a safe place. Or, you can change it right now.', array('!name' => $account->name, '!pass' => $newpass)));
+
+	// We need to fill up more information after login
+	$data['uid']=user_authenticate($account->name, $newpass);
+	user_login_submit(array(),$data);
+
+	$form_state['redirect']='user/'.$account->uid.'/edit';
+}
+
 /**
  * Implementation of object_load().
  */
