@@ -1071,11 +1071,12 @@ function cert_issue_user_exchange_page() {
 }
 
 function cer_load($cer) {
-	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')->condition('cer.cerid',$cer);
-	$query->innerJoin('certificates_operations','co','cer.coid=co.coid');
-	$query->innerJoin('certificates','c','c.cid=co.cid');
-	$query->addExpression('c.name','cname');
-	$query->fields('c',array('cid','series'));
+	$query=db_query('SELECT cer.*, c.cid, c.series, c.name AS cname FROM {certificates_exchange_rolls} cer '.
+		'INNER JOIN {certificates_operations} co ON cer.coid=co.coid '.
+		'INNER JOIN {certificates} c ON c.cid=co.cid '.
+		'WHERE cer.cerid=:cerid',
+		array(':cerid'=>$cer)
+	)->fetchObject(); 
 	$obj=$query->execute()->fetchObject();
 	if(!$obj) return FALSE;
 	$cid_orig=json_decode($obj->cid_orig);
