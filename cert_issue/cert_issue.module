@@ -1239,4 +1239,13 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 		$form_state['redirect'] = 'user/certs';
 	}
 }
+
+function cert_issue_form_user_profile_form_alter(&$form, &$form_state) {
+	$user=$form['#user'];
+	if($user->uid) {
+		$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} WHERE status=1 AND claimedby=:uid)',array(':uid'=>$user->uid));
+		if($query->fetchField())
+			$form_state['storage']['disable_edit']=TRUE;
+	}
+}
 ?>
