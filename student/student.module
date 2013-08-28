@@ -262,7 +262,7 @@ function student_user_account_form(&$form, $form_state) {
 		$form['personal']['current_photo'] = array(
 			'#type' => 'item',
 			'#title' => t('Current Picture'),
-			'#markup' => sprintf('<img src="%s" style="padding-right: 10px"/>', $student->picture),
+			'#markup' => sprintf('<img src="%s" style="padding-right: 10px"/>', $defaults->picture),
 		);
 	}
 	$form['personal']['photo'] = array(
