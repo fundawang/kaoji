@@ -172,8 +172,7 @@ function cert_issue_massiveupload_form_step1($form, $form_state) {
 		'#options' => $options,
 		'#default_value' => isset($form_state['storage']['oid'])?$form_state['storage']['oid']:NULL,
 	);
-	$query=db_select('certificates','c')->fields('c')->orderBy('c.cid');
-	$rdbo=$query->execute();
+	$rdbo=db_query('SELECT * FROM {certificates} ORDER BY cid');
 	$options=array();
 	foreach($rdbo as $r) {
 		$options+=array(
@@ -238,9 +237,11 @@ function cert_issue_massiveupload_form_step1_submit($form, &$form_state) {
 	}
 	$form_state['storage']['oid']=$form_state['values']['organization'];
 	$form_state['storage']['cid']=$form_state['values']['certificatetype'];
-	$form_state['storage']['coid']=db_select('certificates_operations','co')->fields('co',array('coid'))
-		->condition('co.cid',$form_state['values']['certificatetype'])->condition('co.oid',$form_state['values']['organization'])
-		->execute()->fetchField();
+	$form_state['storage']['coid']=db_query(
+		'SELECT coid FROM {certificates_operations} '.
+		'WHERE cid=:cid AND oid=:oid',
+		array(':cid'=>$form_state['values']['certificatetype'], ':oid'=> $form_state['values']['organization'])
+	)->fetchField();
 	$form_state['storage']['fid']=$form_state['values']['massivefile'];
 	$form_state['rebuild']=TRUE;
 	$form_state['storage']['step']=2;
@@ -559,9 +560,8 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 					));
 					break;
 				}
-				$student=db_select('students','s')->fields('s')
-					->condition('s.idcard_type',$idcard_type)->condition('s.idcard_number',$idcardnumber)
-					->execute()->fetchObject();
+				$student=db_query('SELECT * FROM {students} WHERE idcard_type=:idcard_type AND idcard_number=:idcard_number',
+					array(':idcard_type'=>$idcard_type,':idcard_number'=>$idcardnumber))->fetchObject();
 				if(!$student) break;
 				if(($student->name != $name && $student->exname != $name) || ($student_gender != $gender)) {
 					$form_set_error('idcardnumber',
@@ -620,7 +620,8 @@ function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
 			$gender=1;
 		else
 			$gender=2;
-		$claimedby=(int)db_select('students','s')->condition('s.idcard_type')->fields('s',array('uid'))->execute()->fetchField();
+		$claimedby=(int)db_query('SELECT uid FROM {students} WHERE idcard_number=:idcard_number',
+			array(':idcard_number='=>$idcardnumber))->fetchField();
 		$r=db_insert('certificates_issues')->fields(array(
 			'coid' => $form_state['storage']['coid'],
 			'certid' => $certid,
@@ -835,8 +836,7 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 		'#title' => t(', if he has a valid'),
 		'#required' => TRUE,
 	);
-	$query=db_select('certificates','c')->fields('c')->orderBy('c.series')->orderBy('c.cid');
-	$rdbo=$query->execute();
+	$rdbo=db_query('SELECT * FROM {certificates} ORDER BY series, cid');
 	$options=array();
 	foreach($rdbo as $r) {
 		$options+=array(
@@ -909,7 +909,7 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 		$cid_orig=json_decode($r->cid_orig);
 		$cids=array();
 		foreach($cid_orig as $cid) {
-			$cids[]=db_select('certificates','c')->condition('c.cid',$cid)->fields('c',array('name'))->execute()->fetchField();
+			$cids[]=db_query('SELECT name FROM {certificates} WHERE cid=:cid',array(':cid'=>$cid))->fetchField();
 		}
 		if(count($cids)>1)
 			$c='<ul><li>'.implode('</li><li>',$cids).'</li></ul>';
@@ -1011,8 +1011,8 @@ function cert_issue_exchange_rolls_form_submit($form, $form_state) {
 		'visible'=>0,
 		'status'=>0,
 	))->execute();
-	$coid=db_select('certificates_operations','co')->condition('co.cid',$form_state['values']['cid'])->condition('co.oid',$oid)
-		->fields('co',array('coid'))->execute()->fetchField();
+	$coid=db_query('SELECT coid FROM {certificates_operations} WHERE cid=:cid AND oid=:oid',
+		array(':cid'=>$form_state['values']['cid'], ':oid'=>$oid))->fetchField();
 	$r=db_insert('certificates_exchange_rolls')->fields(array(
 		'cid_orig' => json_encode($cid_orig),
 		'coid' => $coid,
@@ -1053,8 +1053,7 @@ function cert_issue_user_exchange_page() {
 	);
 
 	$rows=array();
-	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')->condition('cer.status',2);
-	$rdbo=$query->execute();
+	$rdbo=db_query('SELECT * FROM {certificates_exchange_rolls} WHERE status=2');
 	foreach($rdbo as $r) {
 		$cer=cer_load($r->cerid);
 		$rows[]=array(
@@ -1083,7 +1082,7 @@ function cer_load($cer) {
 	$obj->cid_orig=$cid_orig;
 	$cids=array();
 	foreach($cid_orig as $cid) {
-		$cids[]=db_select('certificates','c')->condition('c.cid',$cid)->fields('c',array('name'))->execute()->fetchField();
+		$cids[]=db_query('SELECT name FROM {certificates} WHERE cid=:cid',array(':cid'=>$cid))->fetchField();
 	}
 	$obj->cname_orig=$cids;
 	if(count($cids)>1)
@@ -1121,12 +1120,13 @@ function cert_issue_user_exchange_form($form, &$form_state, $cer) {
 	$form=array();
 	$certs=array();
 	foreach($cer->cid_orig as $cid) {
-		$query=db_select('certificates_issues','ci')->fields('ci',array('certid'));
-		$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
-		$query->condition('co.cid',$cid)->orderBy('ci.issuedate','desc');
-		$query->innerJoin('certificates','c','c.cid=co.cid');
-		$query->fields('c',array('series','name'));
-		$r=$query->execute()->fetchObject();
+		$query=db_query('SELECT ci.certid, c.series, c.name FROM {certificates_issues} ci '.
+			'INNER JOIN {certificates_operations} co ON co.coid=ci.coid '.
+			'INNER JOIN {certificates} c ON co.cid=c.cid '.
+			'WHERE co.cid=:cid ORDER BY ci.issuedate DESC',
+			array(':cid'=>$cid)
+		);
+		$r=$query->fetchObject();
 		$certs[]=sprintf('%s %s', $r->series, $r->name).'<br/>'.t('No. @certid', array('@certid'=>$r->certid));
 	}
 	if(count($certs)>1)
@@ -1139,7 +1139,7 @@ function cert_issue_user_exchange_form($form, &$form_state, $cer) {
 		'#markup' => $certs_str,
 	);
 
-	$r=db_select('certificates','c')->fields('c')->condition('c.cid',$cer->cid)->execute()->fetchObject();
+	$r=db_query('SELECT * FROM {certificates} WHERE cid=:cid',array(':cid'=>$cer->cid))->fetchObject();
 	$form['cid']=array(
 		'#type' => 'item',
 		'#title' => t('Will be exchanged to certificates'),
