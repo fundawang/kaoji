@@ -255,8 +255,7 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	);
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
 	$file=file_load($form_state['storage']['fid']);
-	$wrapper = file_stream_wrapper_get_instance_by_uri($file->uri);
-	$uri = $wrapper->realpath();
+	$uri = drupal_realpath($file->uri);
 	$format=PHPExcel_IOFactory::identify($uri);
 	$objReader = PHPExcel_IOFactory::createReader($format);
 	$objReader->setReadDataOnly(true);
