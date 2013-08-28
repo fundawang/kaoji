@@ -1103,7 +1103,7 @@ function cert_issue_user_exchange_form_access($cer) {
 	if(!cert_issue_user_certs_page_access()) return FALSE;
 	$user=$GLOBALS['user'];
 
-	$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} ci WHERE ci.claimedby=:uid AND co.cid=:cid)',
+	$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} ci INNER JOIN {certificates_operations} co ON co.coid=ci.coid WHERE ci.claimedby=:uid AND co.cid=:cid)',
 		array(':uid'=>$user->uid, ':cid'=>$cer->cid)
 	);
 	if($query->fetchField()) return FALSE;
@@ -1120,7 +1120,6 @@ function cert_issue_user_exchange_form($form, &$form_state, $cer) {
 	$user=$GLOBALS['user'];
 	$form=array();
 	$certs=array();
-	$form_state['storage']['cerid']=$cer->cerid;
 	foreach($cer->cid_orig as $cid) {
 		$query=db_select('certificates_issues','ci')->fields('ci',array('certid'));
 		$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
@@ -1219,7 +1218,7 @@ function cert_issue_user_exchange_form_cancel($form, &$form_state) {
 
 function cert_issue_user_exchange_form_submit($form, &$form_state) {
 	$student=student_load($GLOBALS['user']);
-	$cer=cer_load($form_state['storage']['cerid']);
+	$cer=$form_state['build_info']['args'][0];
 	$r=db_insert('certificates_issues')->fields(array(
 		'coid' => $cer->coid,
 		'name' => $student->name,
