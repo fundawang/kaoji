@@ -111,8 +111,8 @@ function student_menu() {
 
 function student_picture_perm($user,$md5=NULL) {
 	if(!user_view_access($user)) return FALSE;
-	$query=db_select('students','s')->fields('s',array('picture'))->condition('uid', $user->uid);
-	$img_tmp=$query->execute()->fetchField();
+	$query=db_query('SELECT picture FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid));
+	$img_tmp=$query->fetchField();
 	if(substr(md5($img_tmp), 0,4)!=$md5) return FALSE;
 	if($img_tmp)
 		$test=imagecreatefromstring(base64_decode($img_tmp));
@@ -296,8 +296,8 @@ function student_user_account_form(&$form, $form_state) {
 }
 
 function student_picture($account) {
-	$query=db_select('students','s')->fields('s',array('picture'))->condition('s.uid',$account->uid);
-	$img_tmp=$query->execute()->fetchField();
+	$query=db_query('SELECT picture FROM {students} where uid=:uid',array(':uid'=>$account->uid));
+	$img_tmp=$query->fetchField();
 	if(!$img_tmp) return NULL;
 	$img=imagecreatefromstring(base64_decode($img_tmp));
 	$newheight=200;
@@ -522,12 +522,9 @@ function student_form_user_pass_validate($form, &$form_state) {
 
 function student_form_user_pass_submit($form, &$form_state) {
 	// We will detect users based on one's IDCard number and his realname.
-	$query = db_select('users', 'u');
-	$query->innerjoin('students', 's', 'u.uid=s.uid');
-	$query = $query
-		->fields('u',array('uid'))
-		->condition('s.idcard_number', $form_state['values']['idnumber']);
-	$uid=$query->execute()->fetchField();
+	$query=db_query('SELECT u.uid FROM {users} u INNER JOIN {students} s ON u.uid=s.uid WHERE s.idcard_number=:idcardnumber',
+		array(':idcardnumber'=>$form_state['values']['idnumber']));
+	$uid=$query->fetchField();
 	$account = user_load($query->execute()->fetchField());
 	$newpass = user_password(6);
 
@@ -552,7 +549,7 @@ function student_form_user_pass_submit($form, &$form_state) {
  */
 function student_load($user) {
 	if($user && $user->uid) {
-		$obj=db_select('students','s')->condition('s.uid',$user->uid)->fields('s')->execute()->fetchObject();
+		$obj=db_query('SELECT * FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid))->fetchObject();
 		if(!$obj) return FALSE;
 		$obj->rawpicture=$obj->picture;
 		if(preg_match('/(?i)msie [1-8]/',$_SERVER['HTTP_USER_AGENT'])) {
