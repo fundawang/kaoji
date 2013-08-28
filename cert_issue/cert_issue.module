@@ -1000,14 +1000,24 @@ function cert_issue_exchange_rolls_form_submit($form, $form_state) {
 	$cid_orig=array((int)$form_state['values']['cid_orig']);
 	if($form_state['values']['cid_orig_extra'])
 		$cid_orig[]=(int)($form_state['values']['cid_orig_extra']);
-	db_merge('operations')->key(array('oid'=>date('Ym')))->insertFields(array(
-		'oid'=>date('Ym'),
+	$oid=sprintf("%4d%02d",date('Y'),date('m')+20);
+	db_merge('operations')->key(array('oid'=>$oid))->insertFields(array(
+		'oid'=>$oid,
 		'year'=>date('Y'),
 		'name'=>t('!year !month cert exchange',array('!year'=>date('Y'), '!month'=>date('n'))),
-	))->execute(); 
+	))->execute();
+	db_merge('certificates_operations')->key(array('oid'=>$oid, 'cid'=>$form_state['values']['cid']))->insertFields(array(
+		'oid'=>$oid,
+		'cid'=>$form_state['values']['cid'],
+		'visible'=>0,
+		'status'=>0,
+	))->execute();
+	$coid=db_select('certificates_operations','co')->condition('co.cid',$form_state['values']['cid'])->condition('co.oid',$oid)
+		->fields('co',array('coid'))->execute()->fetchField();
 	$r=db_insert('certificates_exchange_rolls')->fields(array(
 		'cid' => $form_state['values']['cid'],
 		'cid_orig' => json_encode($cid_orig),
+		'coid' => $coid,
 		'status' => $form_state['values']['enabled']?2:0,
 	))->execute();
 	if($r)
@@ -1054,6 +1064,10 @@ function cert_issue_user_exchange_page() {
 			$cer->cname_orig_formatted,
 			cert_issue_user_exchange_form_access($cer)?l(t('Apply for this new certificate'),'user/exchange/'.$r->cerid):t('Cannot apply'),
 		);
+		$query=db_query('SELECT EXISTS (SELECT * FROM {certificates_issues} WHERE claimedby=:uid AND coid=:coid)',
+			array(':uid'=>$GLOBALS['user']->uid, ':coid'=>$cer->coid));
+		if($query->fetchField())
+			$rows[count($rows)-1][count($rows[count($rows)-1])-1]=l(t('Already applied, check status'), 'user/certs');
 	}
 	$output.=theme('table',array('header'=>$header, 'rows'=>$rows, 'empty'=>t('There is no currently open rolls for certificate exchange.')));
 	return $output;
@@ -1104,10 +1118,11 @@ function cert_issue_user_exchange_form_access($cer) {
 	return TRUE;
 }
 
-function cert_issue_user_exchange_form($form, $form_state, $cer) {
+function cert_issue_user_exchange_form($form, &$form_state, $cer) {
 	$user=$GLOBALS['user'];
 	$form=array();
 	$certs=array();
+	$form_state['storage']['cerid']=$cer->cerid;
 	foreach($cer->cid_orig as $cid) {
 		$query=db_select('certificates_issues','ci')->fields('ci',array('certid'));
 		$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
@@ -1134,21 +1149,44 @@ function cert_issue_user_exchange_form($form, $form_state, $cer) {
 		'#markup' => sprintf('%s %s', $r->series, $r->name),
 	);
 	$student=student_load($user);
+	$form['picture']=array(
+		'#type' => 'item',
+		'#markup' => sprintf('<img src="%s" height="150" align="left" style="margin-right: 30px;"/>', $student->picture),
+		'#states' => array(
+			'visible' => array(
+				':input[name="confirm"]' => array('checked' =>FALSE),
+			),
+		),
+	);
 	$form['name']=array(
 		'#type' => 'item',
 		'#title' => t('Your Name'),
 		'#markup' => sprintf('%s<br/>%s', $student->name, $student->foreign_name),
-		'#prefix' => sprintf('<img src="%s" height="150" align="left" style="margin-right: 30px;"/>', $student->picture),
+		'#states' => array(
+			'visible' => array(
+				':input[name="confirm"]' => array('checked' =>FALSE),
+			),
+		),
 	);
 	$form['idcard']=array(
 		'#type' => 'item',
 		'#title' => t('Your IDCard number'),
 		'#markup' => $student->idcard_number,
+		'#states' => array(
+			'visible' => array(
+				':input[name="confirm"]' => array('checked' =>FALSE),
+			),
+		),
 	);
 	$form['birthdate']=array(
 		'#type' => 'item',
 		'#title' => t('Your birth date'),
 		'#markup' => $student->date_of_birth,
+		'#states' => array(
+			'visible' => array(
+				':input[name="confirm"]' => array('checked' =>FALSE),
+			),
+		),
 	);
 	$form['confirm']=array(
 		'#type' => 'checkbox',
@@ -1160,11 +1198,13 @@ function cert_issue_user_exchange_form($form, $form_state, $cer) {
 	$form['cancel']=array(
 		'#type' => 'submit',
 		'#value' => t('Cancel'),
+		'#weight' => 100,
 		'#submit' => array('cert_issue_user_exchange_form_cancel'),
 		'#limit_validation_errors' => array(),
 	);
 	$form['submit']=array(
 		'#type' => 'submit',
+		'#weight' => 101,
 		'#value' => t('Apply for certificate exchange'),
 		'#states' => array(
 			'visible' => array(
@@ -1177,5 +1217,26 @@ function cert_issue_user_exchange_form($form, $form_state, $cer) {
 
 function cert_issue_user_exchange_form_cancel($form, &$form_state) {
 	$form_state['redirect'] = 'user/exchange';
+}
+
+function cert_issue_user_exchange_form_submit($form, &$form_state) {
+	$student=student_load($GLOBALS['user']);
+	$cer=cer_load($form_state['storage']['cerid']);
+	$r=db_insert('certificates_issues')->fields(array(
+		'coid' => $cer->coid,
+		'name' => $student->name,
+		'foreign_name' => $student->foreign_name,
+		'idcard_type' => $student->idcard_type,
+		'idcard_number' => $student->idcard_number,
+		'date_of_birth' => $student->date_of_birth,
+		'gender' => $student->gender,
+		'picture' => $student->rawpicture,
+		'claimedby' => $student->uid,
+		'status' => 1,
+	))->execute();
+	if($r) {
+		drupal_set_message(t('Certificate exchange applied.'));
+		$form_state['redirect'] = 'user/certs';
+	}
 }
 ?>
