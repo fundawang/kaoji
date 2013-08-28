@@ -1232,6 +1232,7 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 		'status' => 1,
 	))->execute();
 	if($r) {
+		$form_state['values']['ciid']=$r;
 		drupal_set_message(t('Certificate exchange applied.'));
 		$form_state['redirect'] = 'user/certs';
 	}
