@@ -5,10 +5,8 @@
 */
 
 function snailmail_form_cert_issue_user_exchange_form_alter(&$form, &$form_state) {
-	$query=db_select('snailmail_addresses','sma')->fields('sma')
-		->condition('sma.uid',$GLOBALS['user']->uid)->orderBy('sma.smaid');
+	$rdb=db_query('SELECT * FROM {snailmail_addresses} WHERE uid=:uid ORDER BY smaid',array(':uid'=>$GLOBALS['user']->uid));
 	$options=array();
-	$rdbo=$query->execute();
 	foreach($rdbo as $r) {
 		$options+=array(
 			$r->smaid => sprintf('%s / %s / %s / %s', $r->address, $r->recipient, $r->zipcode, $r->phonenumber)
