@@ -806,7 +806,9 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 		'#collapsible' => TRUE,
 	);
 	$query=db_select('certificates','c')->fields('c')->orderBy('c.series')->orderBy('c.cid');
-	$subquery=db_select('certificates_exchange_rolls','cer')->fields('cer')->where('cer.cid=c.cid')->condition('cer.status',2);
+	$subquery=db_select('certificates_exchange_rolls','cer')->fields('cer');
+	$subquery->innerJoin('certificates_operations','co','cer.coid=co.coid');
+	$subquery->where('co.cid=c.cid')->condition('cer.status',2);
 	$query->notExists($subquery);
 	$rdbo=$query->execute();
 	$options=array();
@@ -887,7 +889,8 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 	);
 	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')
 		->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);
-	$query->innerJoin('certificates','c','c.cid=cer.cid');
+	$query->innerJoin('certificates_operations','co','cer.coid=co.coid');
+	$query->innerJoin('certificates','c','c.cid=co.cid');
 	$query->fields('c',array('series','name'));
 	$form['rolls']=array(
 		'#type' => 'fieldset',
@@ -1075,9 +1078,10 @@ function cert_issue_user_exchange_page() {
 
 function cer_load($cer) {
 	$query=db_select('certificates_exchange_rolls','cer')->fields('cer')->condition('cer.cerid',$cer);
-	$query->innerJoin('certificates','c','c.cid=cer.cid');
+	$query->innerJoin('certificates_operations','co','cer.coid=co.coid');
+	$query->innerJoin('certificates','c','c.cid=co.cid');
 	$query->addExpression('c.name','cname');
-	$query->fields('c',array('series'));
+	$query->fields('c',array('cid','series'));
 	$obj=$query->execute()->fetchObject();
 	if(!$obj) return FALSE;
 	$cid_orig=json_decode($obj->cid_orig);
@@ -1104,8 +1108,7 @@ function cert_issue_user_exchange_form_access($cer) {
 	if(!cert_issue_user_certs_page_access()) return FALSE;
 	$user=$GLOBALS['user'];
 
-	$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} ci INNER JOIN {certificates_operations} co '.
-		'ON co.coid=ci.coid WHERE ci.claimedby=:uid AND co.cid=:cid)',
+	$query=db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} ci WHERE ci.claimedby=:uid AND co.cid=:cid)',
 		array(':uid'=>$user->uid, ':cid'=>$cer->cid)
 	);
 	if($query->fetchField()) return FALSE;
