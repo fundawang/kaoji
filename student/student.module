@@ -407,6 +407,7 @@ function student_load($user) {
 	if($user && $user->uid) {
 		$obj=db_select('students','s')->condition('s.uid',$user->uid)->fields('s')->execute()->fetchObject();
 		if(!$obj) return FALSE;
+		$obj->rawpicture=$obj->picture;
 		if(preg_match('/(?i)msie [1-8]/',$_SERVER['HTTP_USER_AGENT'])) {
 			$url=sprintf('%suser/%s/%s/picture.jpg', base_path(), $obj->uid, substr(md5($obj->picture),0,4));
 			$obj->picture=$url;
