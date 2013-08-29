@@ -41,6 +41,9 @@ function charge_schema() {
 			'status' => array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default'=>0),
 		),
 		'primary key' => array('orderno'),
+		'unique keys' => array(
+			'uid_ordertitle' => array('uid', 'order_title')
+		),
 		'indexes' => array(
 			'uid' => array('uid'),
 			'standard' => array('standard'),
@@ -54,6 +57,10 @@ function charge_schema() {
 				'table' => 'users',
 				'columns' => array('uid' => 'uid'),
 			),
+			'standard' => array(
+				'table' => 'charging_accounts',
+				'columns' => array('standard' => 'caid'),
+			),
 		),
 	);
 	$schema['orders_process'] = array(
@@ -62,13 +69,18 @@ function charge_schema() {
 			'orderno' => array('type' => 'varchar', 'length' => '20','not null' => TRUE,'default'=>''),
 			'timestamp' => array('type' => 'int','not null' => FALSE, 'default'=>0),
 			'gateway' => array('type' => 'varchar','length' => '20','not null' => TRUE,'default'=>''),
+			'transno' => array('type' => 'varchar','length' => '30','not null' => TRUE,'default'=>''),
 			'amount' => array('type' => 'int','not null' => TRUE,'default'=>0),
 		),
 		'primary key' => array('opid'),
+		'unique keys' => array(
+			'gateway_transno' => array('gateway', 'transno')
+		),
 		'indexes' => array(
 			'orderno' => array('orderno'),
 			'timestamp' => array('timestamp'),
 			'amount' => array('amount'),
+			'transno' => array('transno')
 		),
 		'foreign keys' => array(
 			'orderno' => array(
@@ -78,6 +90,21 @@ function charge_schema() {
 		),
 	);
 	return $schema;
+}
+
+/**
+ * add transno field
+ */
+function charge_update_7000() {
+	$transno = array('type' => 'varchar','length' => '30','not null' => TRUE,'default'=>'');
+	$index=array(
+		'indexes' => array(
+			'transno' => array('transno')
+		)
+	);
+	db_add_field('orders_process', 'transno', $transno, $index);
+	db_add_unique_key('orders_process', 'gateway_transno', array('gateway', 'transno'));
+	db_add_unique_key('orders', 'uid_ordertitle', array('uid', 'ordertitle'));
 }
 
 
