@@ -1,0 +1,83 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+*/
+
+/**
+ * @file
+ * Install, update and uninstall functions for the charge module.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function charge_schema() {
+	$schema['charging_accounts'] = array(
+		'fields' => array(
+			'caid' => array('type' => 'serial', 'not null' => TRUE),
+			'module' => array('type' => 'varchar', 'length' => '100', 'not null' => TRUE, 'default' =>''),
+			'account' => array('type' => 'varchar', 'length' => '100', 'not null' => TRUE, 'default' =>''),
+			'amount' => array('type' => 'int','not null' => TRUE, 'default'=>0),
+		),
+		'primary key' => array('caid'),
+		'unique keys' => array(
+			'module_account' => array('module', 'account')
+		),
+		'indexes' => array(
+			'module' => array('module'),
+			'account' => array('account'),
+			'amount' => array('amount'),
+		),
+	);
+	$schema['orders'] = array(
+		'fields' => array(
+			'orderno' => array('type' => 'varchar', 'length' => '20','not null' => TRUE),
+			'uid' => array('type' => 'int','not null' => TRUE,'default'=>0),
+			'ordertime' => array('type' => 'int','not null' => FALSE),
+			'standard' => array('type' => 'int','not null' => TRUE,'default'=>0),
+			'ordertitle' => array('type' => 'varchar','length' => '50','not null' => TRUE,'default'=>''),
+			'amount' => array('type' => 'int','not null' => TRUE,'default'=>0),
+			'status' => array('type' => 'int', 'size' => 'tiny', 'not null' => TRUE, 'default'=>0),
+		),
+		'primary key' => array('orderno'),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'standard' => array('standard'),
+			'ordertitle' => array('ordertitle'),
+			'ordertime' => array('ordertime'),
+			'amount' => array('amount'),
+			'status' => array('status'),
+		),
+		'foreign keys' => array(
+			'uid' => array(
+				'table' => 'users',
+				'columns' => array('uid' => 'uid'),
+			),
+		),
+	);
+	$schema['orders_process'] = array(
+		'fields' => array(
+			'opid'=>array('type'=>'serial','not null' => TRUE),
+			'orderno' => array('type' => 'varchar', 'length' => '20','not null' => TRUE,'default'=>''),
+			'timestamp' => array('type' => 'int','not null' => FALSE, 'default'=>0),
+			'gateway' => array('type' => 'varchar','length' => '20','not null' => TRUE,'default'=>''),
+			'amount' => array('type' => 'int','not null' => TRUE,'default'=>0),
+		),
+		'primary key' => array('opid'),
+		'indexes' => array(
+			'orderno' => array('orderno'),
+			'timestamp' => array('timestamp'),
+			'amount' => array('amount'),
+		),
+		'foreign keys' => array(
+			'orderno' => array(
+				'table' => 'orders',
+				'columns' => array('orderno' => 'orderno'),
+			),
+		),
+	);
+	return $schema;
+}
+
+

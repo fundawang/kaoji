@@ -1233,6 +1233,7 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 	))->execute();
 	if($r) {
 		$form_state['values']['ciid']=$r;
+		$form_state['storage']['charge_accounts']='certexchange';
 		drupal_set_message(t('Certificate exchange applied.'));
 		$form_state['redirect'] = 'user/certs';
 	}
@@ -1245,5 +1246,14 @@ function cert_issue_form_user_profile_form_alter(&$form, &$form_state) {
 		if($query->fetchField())
 			$form_state['storage']['disable_edit']=TRUE;
 	}
+}
+
+/**
+ * Implementation of hook_charge_accounts().
+ */
+function cert_issue_charge_accounts() {
+	return array(
+		'certexchange' => 'Cert Exchange',
+	);
 }
 ?>
