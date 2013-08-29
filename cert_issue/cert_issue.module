@@ -873,6 +873,7 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 	$form['addrolls']['save']=array(
 		'#type' => 'submit',
 		'#value' => t('Add roll'),
+		'#weight' => 100,
 	);
 	$form['#attached']['css'][]=array(
 		'data'=>'div.form-item-enabled div.description {color: red; font-weight: bold;}',
@@ -1053,7 +1054,7 @@ function cert_issue_user_exchange_page() {
 
 	$rows=array();
 	$rdbo=db_query('SELECT * FROM {certificates_exchange_rolls} WHERE status=2');
-	foreach($rdbo as $r) {
+	foreach($rdbo as $r) { 
 		$cer=cer_load($r->cerid);
 		$rows[]=array(
 			sprintf('%s %s', $cer->series, $cer->cname),
@@ -1075,8 +1076,8 @@ function cer_load($cer) {
 		'INNER JOIN {certificates} c ON c.cid=co.cid '.
 		'WHERE cer.cerid=:cerid',
 		array(':cerid'=>$cer)
-	)->fetchObject(); 
-	$obj=$query->execute()->fetchObject();
+	); 
+	$obj=$query->fetchObject();
 	if(!$obj) return FALSE;
 	$cid_orig=json_decode($obj->cid_orig);
 	$obj->cid_orig=$cid_orig;
@@ -1118,6 +1119,11 @@ function cert_issue_user_exchange_form_access($cer) {
 function cert_issue_user_exchange_form($form, &$form_state, $cer) {
 	$user=$GLOBALS['user'];
 	$form=array();
+	$form_state['storage']['charge']=array(
+		'module'=>'cert_issue',
+		'account'=>'certexchange',
+		'ordertitle'=>drupal_get_title()
+	);
 	$certs=array();
 	foreach($cer->cid_orig as $cid) {
 		$query=db_query('SELECT ci.certid, c.series, c.name FROM {certificates_issues} ci '.
@@ -1233,7 +1239,6 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 	))->execute();
 	if($r) {
 		$form_state['values']['ciid']=$r;
-		$form_state['storage']['charge_accounts']='certexchange';
 		drupal_set_message(t('Certificate exchange applied.'));
 		$form_state['redirect'] = 'user/certs';
 	}
