@@ -525,7 +525,7 @@ function student_form_user_pass_submit($form, &$form_state) {
 	$query=db_query('SELECT u.uid FROM {users} u INNER JOIN {students} s ON u.uid=s.uid WHERE s.idcard_number=:idcardnumber',
 		array(':idcardnumber'=>$form_state['values']['idnumber']));
 	$uid=$query->fetchField();
-	$account = user_load($query->execute()->fetchField());
+	$account = user_load($uid);
 	$newpass = user_password(6);
 
 	user_save($account, array('pass'=>$newpass));
