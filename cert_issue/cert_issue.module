@@ -133,6 +133,7 @@ function _cert_issue_is_file_spreadsheet($file) {
 	switch($format=PHPExcel_IOFactory::identify($file->uri)) {
 		case 'Excel5':
 		case 'Excel2007':
+		try {
 			$objReader = PHPExcel_IOFactory::createReader($format);
 			$objReader->setReadDataOnly(true);
 			$objPHPExcel = $objReader->load($file->uri);
@@ -140,6 +141,9 @@ function _cert_issue_is_file_spreadsheet($file) {
 			$objPHPExcel->disconnectWorksheets();
 			unset($objPHPExcel);
 			unset($objReader);
+		} catch(Exception $exp) {
+			return array($exp->getMessage());
+		}
 	}
 	if($result) return array();
 	else return array(t('It is not a valid spreadsheet file.'));
@@ -470,7 +474,7 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 				break;
 			}
 
-			if(db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} WHERE certid=:certid', array(':certid'=>$certid))->fetchField()) {
+			if(db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} WHERE certid=:certid)', array(':certid'=>$certid))->fetchField()) {
 				form_set_error('certid',
 					t('!cord: The value !val duplicate with existing certids.',
 						array('!cord'=>$form_state['values']['certid'].$row, '!val' => $certid)
@@ -512,6 +516,7 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 			// Test birthdate
 			if($form_state['values']['birthdate']) {
 				$birthdate=trim($objWorksheet->getCell($form_state['values']['birthdate'].$row)->getCalculatedValue());
+				$birthdate=preg_replace('/-/','',$birthdate);
 				if(!empty($birthdate) && !preg_match('/^[0-9]+$/', $birthdate)) {
 					form_set_error('birthdate', t('!cord: The birthdate !val is invalid.',
 						array('!cord'=>$form_state['values']['birthdate'].$row, '!val' => $birthdate)
@@ -614,13 +619,14 @@ function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
 		else
 			$idcardnumber='';
 		$birthdate=trim($objWorksheet->getCell($form_state['values']['birthdate'].$row)->getCalculatedValue());
+		$birthdate=preg_replace('/-/','',$birthdate);
 		$gender=trim($objWorksheet->getCell($form_state['values']['gender'].$row)->getCalculatedValue());
 		if(in_array($gender,array('1',t('Male'))))
 			$gender=1;
 		else
 			$gender=2;
 		$claimedby=(int)db_query('SELECT uid FROM {students} WHERE idcard_number=:idcard_number',
-			array(':idcard_number='=>$idcardnumber))->fetchField();
+			array(':idcard_number'=>$idcardnumber))->fetchField();
 		$r=db_insert('certificates_issues')->fields(array(
 			'coid' => $form_state['storage']['coid'],
 			'certid' => $certid,
