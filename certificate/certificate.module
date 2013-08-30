@@ -320,7 +320,9 @@ function certificate_operations_form($form, $form_state) {
 function certificate_operations_load($cid, $oid) {
 	$query=db_query('SELECT co.*, c.name AS cname, o.name as oname, c.series FROM {certificates_operations} co '.
 		'INNER JOIN {operations} o ON o.oid=co.oid '.
-		'INNER JOIN {certificates} c ON c.cid=co.cid '
+		'INNER JOIN {certificates} c ON c.cid=co.cid '.
+		'WHERE co.cid=:cid AND co.oid=:oid',
+		array(':cid'=>$cid, ':oid'=>$oid)
 	);
 	return $query->fetchObject();
 }
