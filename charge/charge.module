@@ -35,7 +35,7 @@ function charge_help($path, $arg) {
 		case 'charge/log':
 			$output = t('Check payment logs.');
 			break;
-		case 'user/%/payment':
+		case 'user/payment':
 			$output = '<p>'.t('This page will list all your online payment orders.').'</p>';
 			break;
 		default:
@@ -298,14 +298,39 @@ function charge_user_orders($form, $form_state) {
 			'#type' => 'item',
 			'#markup' => $r->ordertitle,
 		);
-		$form['order_'.$r->orderno]['amount']=array(
+		$form['order_'.$r->orderno]['amountdue']=array(
 			'#type' => 'item',
 			'#markup' => sprintf('&yen;%d', $r->amount),
 		);
-		$form['order_'.$r->orderno]['operation']=array(
-			'#type' => 'submit',
-			'#name' => 'paybutton_'.$r->orderno,
-			'#value' => t('Pay'),
+		switch ($r->status) {
+			case 100:
+				$form['order_'.$r->orderno]['operation']=array(
+					'#type' => 'markup',
+					'#markup' => t('Succeeded'),
+				);
+				break;
+			case 0:
+				$form['order_'.$r->orderno]['operation']=array(
+					'#type' => 'submit',
+					'#name' => 'paybutton_'.$r->orderno,
+					'#value' => t('Pay'),
+				);
+		}
+		$process=db_query('SELECT amount FROM {orders_process} WHERE orderno=:orderno AND amount<>0 ORDER BY timestamp',
+			array(':orderno'=>$r->orderno));
+		$totaltext='';
+		$totalamount=0;
+		foreach($process as $p) {
+			$totalamount+=$p->amount;
+			if($p->amount>0)
+				$totaltext.='+';
+			$totaltext.=$p->amount;
+		}
+		if(substr($totaltext,0,1)=='+') $totaltext=substr($totaltext, 1);
+		$form['order_'.$r->orderno]['totalamount']=array(
+			'#type' => 'markup',
+			'#markup' => empty($totaltext)?'':
+				($totalamount==$r->amount?sprintf('&yen;%d', $r->amount):sprintf('&yen;%s (%s)',$totalamount,$totaltext)),
 		);
 	}
 	$form['#description']=json_encode($orders);
@@ -375,7 +400,7 @@ function charge_user_orders_submit($form, $form_state) {
 	$_form_state['values']=array(
 		'orderno' => $order->orderno,
 		'amount' => $order->amount,
-		'ordertime' => $order->ordertime-3600*24*30,
+		'ordertime' => $order->ordertime,
 		'ordertitle' => sprintf('%s %s', student_load($GLOBALS['user'])->name, $order->ordertitle),
 	);
 	$output=module_invoke($form_state['values']['gateway'], 'submit_form_submit', $form, $_form_state);
@@ -389,7 +414,8 @@ function theme_charge_user_orders($variables) {
 	$header=array(
 		t('Order no'),
 		t('Order title'),
-		t('Amount'),
+		t('Amount due'),
+		t('Transaction amount'),
 		t('Operation')
 	);
 	$orders=json_decode($form['#description']);
@@ -399,7 +425,8 @@ function theme_charge_user_orders($variables) {
 		$rows[]=array(
 			drupal_render($form['order_'.$order]['orderno']),
 			drupal_render($form['order_'.$order]['ordertitle']),
-			drupal_render($form['order_'.$order]['amount']),
+			drupal_render($form['order_'.$order]['amountdue']),
+			drupal_render($form['order_'.$order]['totalamount']),
 			drupal_render($form['order_'.$order]['operation']),
 		);
 		unset($form['order_'.$order]);
