@@ -376,7 +376,7 @@ function student_user_account_form_validate($form, $form_state) {
 	}
 }
 
-function student_user_account_form_save($form, $form_state) {
+function student_user_account_form_save($form, &$form_state) {
 	$user=$form_state['user'];
 	db_merge('students')
 		->key(array('uid' => $user->uid, 'idcard_number' => strtoupper(trim($form_state['values']['idnumber']))))
@@ -393,8 +393,8 @@ function student_user_account_form_save($form, $form_state) {
 			'name' => trim($form_state['values']['truename']),
 			'exname' => $form_state['values']['haveexname']?trim($form_state['values']['exname']):'',
 			'foreign_name' => strtoupper(trim($form_state['values']['pyname'])),
-		))->execute();
-		if($form_state['values']['photo']) {
+	))->execute();
+	if($form_state['values']['photo']) {
 			$file=file_load($form_state['values']['photo']);
 			$image=image_load($file->uri);
 			image_save($image, $file->uri.'.jpg');
@@ -408,7 +408,8 @@ function student_user_account_form_save($form, $form_state) {
 			db_update('students')->condition('uid',$user->uid)->fields(array(
 				'picture' => base64_encode($data),
 			))->execute();
-		}
+	}
+	$form_state['redirect']=sprintf('user/%d', $user->uid);
 }
 
 function student_form_user_pass_alter(&$form, &$form_state) {
@@ -542,6 +543,31 @@ function student_form_user_pass_submit($form, &$form_state) {
 	user_login_submit(array(),$data);
 
 	$form_state['redirect']='user/'.$account->uid.'/edit';
+}
+
+
+function student_user_view($user, $view_mode, $langcode) {
+	$student=student_load($user);
+	if(!$student) return;
+	$user->content['pi'] = array(
+		'#type' => 'user_profile_category',
+		'#title' => t('Personal information'),
+		'#weight' => '1',
+	);
+	$user->content['pi']['name'] = array(
+		'#type' => 'user_profile_item',
+		'#title' => sprintf('<img src="%s" style="padding-right: 10px" align="left" height="100"/>', $student->picture).t('Real Name'),
+		'#markup' => $student->name,
+	);
+	$user->content['pi']['gender'] = array(
+		'#type' => 'user_profile_item',
+		'#title' => t('Gender'),
+		'#markup' => $student->gender==1?t('Male'):t('Female'),
+	);
+}
+
+function student_user_view_alter(&$build) {
+	unset($build['summary']);
 }
 
 /**
