@@ -1,9 +1,9 @@
 <?php
 
-define('charge_PAYMENT_SUCCESS', 1);
-define('charge_PAYMENT_PROCESSING', 0);
-define('charge_PAYMENT_FAILED', -1);
-define('charge_PAYMENT_INVALID', -2);
+define('onlinecharge_PAYMENT_SUCCESS', 1);
+define('onlinecharge_PAYMENT_PROCESSING', 0);
+define('onlinecharge_PAYMENT_FAILED', -1);
+define('onlinecharge_PAYMENT_INVALID', -2);
 
 /**
  * Implementation of hook_requirements().
@@ -102,6 +102,17 @@ function charge_menu() {
 		'access callback' => 'user_access',
 		'access arguments' => array('administer charging'),
 	);
+	$items['charge/log/%order'] = array(
+		'type' => MENU_VISIBLE_IN_BREADCRUMB,
+		'title callback' => 'charge_log_form_detail_form_title',
+		'title arguments' => array(2),
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('charge_log_form_detail',2),
+		'weight' => 2,
+		'description' => "Check payment logs.",
+		'access callback' => 'user_access',
+		'access arguments' => array('administer charging'),
+	);
 	$items['user/payment'] = array(
 		'title' => 'Charging Center',
 		'menu_name' => 'user-menu',
@@ -171,9 +182,8 @@ function charge_fee($form, &$form_state) {
 		foreach($accounts[$module] as $key=>$value) {
 			$form[$module.'_'.$key]=array(
 				'#type' => 'textfield',
-				'#title' => 'RMB',
+				'#field_suffix' => t('RMB'),
 				'#description' => t($value),
-				'#title_display' => 'after',
 				'#required' => TRUE,
 				'#size' => 10,
 				'#default_value' => db_query('SELECT amount FROM {charging_accounts} WHERE module=:module AND account=:account',
@@ -385,17 +395,20 @@ function charge_user_orders($form, $form_state) {
 	return $form;
 }
 
-function charge_generate_random_orderno() {
-}
-
-function charge_user_orders_validate($form, $form_state) {
-}
-
 function charge_user_orders_submit($form, $form_state) {
 	$_form_state=array();
 	$element=explode('_',$form_state['triggering_element']['#name']);
 	$orderno=$element[1];
 	$order=db_query('SELECT * FROM {orders} WHERE orderno=:orderno',array(':orderno'=>$orderno))->fetchObject();
+	db_merge('orders_process')->key(array('orderno'=>$orderno, 'transno'=>$orderno, 'amount'=>0))->fields(array(
+		'orderno' => $orderno,
+		'timestamp' => time(),
+		'gateway' => $form_state['values']['gateway'],
+		'amount' => 0,
+	))->execute();
+	db_update('orders')->condition('orderno',$orderno)->fields(array(
+		'status' => onlinecharge_PAYMENT_PROCESSING,
+	))->execute();
 	$student=student_load($GLOBALS['user']);
 	$_form_state['values']=array(
 		'orderno' => $order->orderno,
@@ -487,14 +500,7 @@ function charge_gatewayreponse($params) {
 	drupal_goto(sprintf('%s/user/payment', base_path()));
 }
 
-function charge_log_form($form, $form_state, $pre_orderno=NULL) {
-	if($pre_orderno) {
-		charge_user_logout();
-		$_COOKIE['Drupal_visitor_orders_orderno']=$pre_orderno;
-		unset($_COOKIE['Drupal_visitor_orders_orderdate']);
-		unset($_COOKIE['Drupal_visitor_orders_gateway']);
-		unset($_COOKIE['Drupal_visitor_orders_status']);
-	}
+function charge_log_form($form, $form_state) {
 	$form=array();
 	$form['conditions']=array(
 		'#type' => 'vertical_tabs',
@@ -504,66 +510,40 @@ function charge_log_form($form, $form_state, $pre_orderno=NULL) {
 		'#title' => t('Search by User'),
 		'#group'=>'conditions',
 		'#attached' => array(
-			'js' => array(drupal_get_path('module', 'onlinecharge') . '/onlinecharge.js'),
-			'css' => array(drupal_get_path('module', 'onlinecharge') . '/onlinecharge.css'),
+			'js' => array(drupal_get_path('module', 'charge') . '/charge.js'),
+			'css' => array(drupal_get_path('module', 'charge') . '/charge.css'),
 		),
 		'#attributes' => array('class' => array('chargelogsearchbyuser')),
 	);
-	if(!isset($_COOKIE['Drupal_visitor_user_uid']))
-		$_COOKIE['Drupal_visitor_user_uid']='';
-	$form['user']['uid']=array(
+	$form['user']['idcard_num']=array(
 		'#type' => 'textfield',
-		'#title' => t('Student ID'),
-		'#maxlength' => 10,
+		'#title' => t('IDCard Number'),
+		'#maxlength' => 18,
 		'#size' => 30,
-		'#default_value' => $_COOKIE['Drupal_visitor_user_uid'],
-		'#attributes'=>array('placeholder'=>variable_get('zhaoban_current_year',date('Y')).'BXXXX'),
+		'#default_value' => isset($form_state['storage']['idcard_num'])?$form_state['storage']['idcard_num']:'',
 	);
-	if(!isset($_COOKIE['Drupal_visitor_user_username']))
-		$_COOKIE['Drupal_visitor_user_username']='';
 	$form['user']['username']=array(
 		'#type' => 'textfield',
 		'#title' => t('Real Name'),
 		'#maxlength' => 10,
 		'#size' => 30,
-		'#default_value' => $_COOKIE['Drupal_visitor_user_username'],
+		'#default_value' => isset($form_state['storage']['username'])?$form_state['storage']['username']:'',
 	);
 	$form['orders']=array(
 		'#type' => 'fieldset',
 		'#title' => t('Search by Order'),
 		'#group'=>'conditions',
 		'#attached' => array(
-			'js' => array(drupal_get_path('module', 'onlinecharge') . '/onlinecharge.js'),
+			'js' => array(drupal_get_path('module', 'charge') . '/charge.js'),
 		),
 	);
-	if(!isset($_COOKIE['Drupal_visitor_orders_orderno']))
-		$_COOKIE['Drupal_visitor_orders_orderno']='';
 	$form['orders']['orderno']=array(
 		'#type' => 'textfield',
 		'#title' => t('Order No.'),
 		'#maxlength' => 20,
 		'#size' => 10,
-		'#default_value' => $_COOKIE['Drupal_visitor_orders_orderno'],
+		'#default_value' => isset($form_state['storage']['orderno'])?$form_state['storage']['orderno']:'',
 	);
-	$query=db_select('orders','o')->fields('o',array('gatewaysettledate'))->isNotNull('o.gatewaysettledate');
-	$query->distinct()->orderBy('gatewaysettledate');
-	$result=$query->execute();
-	$options=array(
-		'00000000' => '-- '.t('All').' --',
-	);
-	foreach($result as $r) {
-		$options[$r->gatewaysettledate]=intval(substr($r->gatewaysettledate,0,2)).t('Month').intval(substr($r->gatewaysettledate,2,2)).t('Day');
-	}
-	if(!isset($_COOKIE['Drupal_visitor_orders_orderdate']))
-		$_COOKIE['Drupal_visitor_orders_orderdate']='00000000';
-	$form['orders']['orderdate']=array(
-		'#type' => 'select',
-		'#title' => t('Order Settle Date'),
-		'#options' => $options,
-		'#default_value' => $_COOKIE['Drupal_visitor_orders_orderdate'],
-	);
-	if(!isset($_COOKIE['Drupal_visitor_orders_gateway']))
-		$_COOKIE['Drupal_visitor_orders_gateway']='0';
 	$options=array(
 		'0'=>'-- '.t('All').' --',
 		'offline' => t('Offline'),
@@ -573,15 +553,7 @@ function charge_log_form($form, $form_state, $pre_orderno=NULL) {
 		if(module_hook($k, 'submit_form_submit'))
 			$options[$k]=t($k);
 	}
-	$form['orders']['ordergateway']=array(
-		'#type' => 'select',
-		'#title' => t('Payment Gateway'),
-		'#options' => $options,
-		'#default_value' => $_COOKIE['Drupal_visitor_orders_gateway'],
-	);
-	if(!isset($_COOKIE['Drupal_visitor_orders_status']))
-		$_COOKIE['Drupal_visitor_orders_status']='-1';
-	$form['orders']['status']=array(
+	$form['orders']['orderstatus']=array(
 		'#type' => 'select',
 		'#title' => t('Status'),
 		'#options' => array(
@@ -590,7 +562,7 @@ function charge_log_form($form, $form_state, $pre_orderno=NULL) {
 			'10' => t('Processing'),
 			'100' => t('Paid successful'),
 		),
-		'#default_value' => $_COOKIE['Drupal_visitor_orders_status'],
+		'#default_value' => isset($form_state['storage']['orderstatus'])?$form_state['storage']['orderstatus']:'',
 	);
 	$form['submit']=array(
 		'#type' => 'submit',
@@ -604,49 +576,33 @@ function charge_log_form($form, $form_state, $pre_orderno=NULL) {
 		'#attributes' => array('title' => t('So that all the filters could be reset')),
 	);
 	$header=array(
-		'suid' => array('data' => t('Student ID'), 'field'=> 'suid'),
-		'name' => array('data' => t('Real Name'), 'field'=> 'sname'),
+		'name' => array('data' => t('Real Name'), 'field'=> 'name'),
 		'ordertitle' => array('data' => t('Order Title'), 'field'=> 'ordertitle'),
 		'orderno' => array('data' => t('Order No'), 'field'=> 'orderno', 'sort'=>'desc'),
-		'gateway' => array('data' => t('Gateway'), 'field'=> 'gateway'),
-		'transno' => array('data' => t('Transaction No'), 'field'=> 'gatewaytransactionno'),
 		'status' => array('data' => t('Status'), 'field'=> 'status'),
 		'operation' => array('data' => t('Operation')),
 	);
-	
-	$query=db_select('orders','o');
-	$query->innerJoin('vl_charging_standard','sc','o.standard=sc.scid');
-	$query->innerJoin('users','u','u.uid=o.uid');
-	$query->innerJoin('students','s','s.uid=u.name');
 
-	if(!empty($_COOKIE['Drupal_visitor_user_uid']))
-		$query->condition('s.uid',$_COOKIE['Drupal_visitor_user_uid']);
-	if(!empty($_COOKIE['Drupal_visitor_user_username']))
-		$query->condition('s.name',$_COOKIE['Drupal_visitor_user_username']);
-	if(!empty($_COOKIE['Drupal_visitor_orders_orderno']))
-		$query->condition('o.orderno',$_COOKIE['Drupal_visitor_orders_orderno']);
-	if($_COOKIE['Drupal_visitor_orders_gateway']!='0')
-		$query->condition('o.gateway',$_COOKIE['Drupal_visitor_orders_gateway']);
-	if($_COOKIE['Drupal_visitor_orders_orderdate']!='00000000')
-		$query->condition('o.gatewaysettledate',$_COOKIE['Drupal_visitor_orders_orderdate']);
-	if($_COOKIE['Drupal_visitor_orders_status']!='-1')
-		if($_COOKIE['Drupal_visitor_orders_status']=='10')
-			$query->condition('o.status','10','>=')->condition('o.status','100','<>');
+	$query=db_select('orders','o')->fields('o');
+	$query->innerJoin('students','s','s.uid=o.uid');
+	$query->fields('s',array('name'));
+	$query->leftJoin('orders_process','op','op.orderno=o.orderno');
+	if(!empty($form_state['storage']['idcard_num']))
+		$query->condition('s.idcard_number',$form_state['storage']['idcard_num']);
+	if(!empty($form_state['storage']['username']))
+		if(preg_match('/^[A-Za-z ]+$/', $form_state['storage']['username']))
+			$query->condition('s.foreign_name', strtoupper($form_state['storage']['username'].'%'), 'LIKE');
 		else
-			$query->condition('o.status',$_COOKIE['Drupal_visitor_orders_status']);
-	$amountq=clone $query;
-	$amountq->addExpression('1');
-	$transnum=$amountq->execute()->rowCount();
-	$amountq->addExpression('SUM(o.amount)','amountq');
-	$amount=$amountq->execute()->fetchField(1);
-	if($transnum > 0)
-		$form['summary']=array(
-			'#markup' => '<b>'.t('Based on current conditions, @num transactions were found, and the related amount is @amount.',array('@num'=>$transnum, '@amount'=>number_format($amount))).'</b>',
-		);
-	$query->addExpression('s.uid','suid');
-	$query->fields('o')->fields('sc',array('period'));
-	$query->addExpression('CONVERT(s.name USING gbk)', 'sname');
-	$query=$query->extend('PagerDefault')->limit(10)->extend('TableSort')->orderByHeader($header);
+			$query->condition('s.name',$form_state['storage']['username'].'%', 'LIKE');
+	if(!empty($form_state['storage']['orderno']))
+		$query->condition('o.orderno',$form_state['storage']['orderno']);
+	if(!empty($form_state['storage']['orderstatus']))
+		if($form_state['storage']['orderstatus']==10)
+			$query->condition('o.status',10,'>=')->condition('o.status',100,'<');
+		else
+			$query->condition('o.status',$form_state['storage']['orderstatus']);
+	$query->extend('PagerDefault')->limit(10)->extend('TableSort')->orderByHeader($header);
+
 	$result=$query->execute();
 	$form['orderlist']=array(
 		'#type'=>'fieldset',
@@ -655,31 +611,15 @@ function charge_log_form($form, $form_state, $pre_orderno=NULL) {
 		$form['orderlist'][$r->orderno]=array(
 			'#type'=>'fieldset',
 		);
-		$form['orderlist'][$r->orderno]['suid']=array(
-			'#markup' => l($r->suid, sprintf('user/%s',$r->uid)),
-		);
 		$form['orderlist'][$r->orderno]['sname']=array(
-			'#markup' => $r->sname,
+			'#markup' => l($r->name,sprintf('user/%s',$r->uid)),
 		);
 		$form['orderlist'][$r->orderno]['orderno']=array(
-			'#markup' => $r->orderno,
-		);
-		$form['orderlist'][$r->orderno]['ordertime']=array(
-			'#markup' => date(t('nMonthjday'),$r->ordertime),
+			'#markup' => l($r->orderno,sprintf('charge/log/%s',$r->orderno)),
 		);
 		$form['orderlist'][$r->orderno]['ordertitle']=array(
-			'#markup' => sprintf("%s (&yen;%s)", $r->period==1?t('1st round'):($r->period==2?t('2nd round'):t('3rd round')), $r->amount),
+			'#markup' => sprintf('%s<br/>&yen; %d', $r->ordertitle, $r->amount),
 		);
-		$form['orderlist'][$r->orderno]['gateway']=array(
-			'#markup' => $r->gateway=='offline'?t('Offline'):$r->gateway,
-		);
-		$form['orderlist'][$r->orderno]['gatewaytransactionno']=array(
-			'#markup' => $r->gatewaytransactionno,
-		);
-		if(!empty($r->gatewaysettledate))
-			$form['orderlist'][$r->orderno]['gatewaysettledate']=array(
-				'#markup' => intval(substr($r->gatewaysettledate,0,2)).t('Month').intval(substr($r->gatewaysettledate,2,2)).t('Day'),
-			);
 		$form['orderlist'][$r->orderno]['status']=array(
 			'#markup' => _charge_status_text($r->status),
 		);
@@ -697,7 +637,9 @@ function charge_log_form($form, $form_state, $pre_orderno=NULL) {
 			case 13:
 			case 14:
 			case 15:
-				if(module_hook($r->gateway, 'querystatus')) {
+				$gateway=db_query('SELECT gateway FROM {orders_process} WHERE orderno=:orderno AND transno=:orderno',
+					array(':orderno'=>$r->orderno))->fetchField();
+				if($gateway && module_hook($gateway, 'querystatus')) {
 					$form['orderlist'][$r->orderno]['requery']=array(
 						'#type' => t('submit'),
 						'#name' => 'requery'.$r->orderno,
@@ -730,7 +672,6 @@ function theme_charge_log_form($variables) {
 	$output.=drupal_render($form['summary']);
 	$output.='</p>';
 	$header=array(
-		'suid' => array('data' => t('Student ID'), 'field'=> 'suid'),
 		'name' => array('data' => t('Real Name'), 'field'=> 'sname'),
 		'ordertitle' => array('data' => t('Order Title'), 'field'=> 'ordertitle'),
 		'orderno' => array('data' => t('Order No.'), 'field'=> 'orderno', 'sort'=>'desc'),
@@ -744,16 +685,7 @@ function theme_charge_log_form($variables) {
 		if(!isset($value['#type'])) continue;
 		if($value['#type']!='fieldset') continue;
 		$orderno=drupal_render($form['orderlist'][$key]['orderno']);
-		if($form['orderlist'][$key]['ordertime']['#markup'])
-			$orderno.='<br/>'.t('Order submit date @date',array('@date'=>t(drupal_render($form['orderlist'][$key]['ordertime']))));
-		if($form['orderlist'][$key]['gateway']['#markup'])
-			$orderno.='<br/>'.t('Via @gateway',array('@gateway'=>t(drupal_render($form['orderlist'][$key]['gateway']))));
-		if($form['orderlist'][$key]['gatewaytransactionno']['#markup'])
-			$orderno.='<br/>'.t('Transno @transno',array('@transno'=>drupal_render($form['orderlist'][$key]['gatewaytransactionno'])));
-		if(isset($form['orderlist'][$key]['gatewaysettledate']['#markup']))
-			$orderno.='<br/>'.t('Settle Date @date',array('@date'=>drupal_render($form['orderlist'][$key]['gatewaysettledate'])));
 		$rows[]=array(
-			'suid' => drupal_render($form['orderlist'][$key]['suid']),
 			'name' => drupal_render($form['orderlist'][$key]['sname']),
 			'ordertitle' => drupal_render($form['orderlist'][$key]['ordertitle']),
 			'orderno' => $orderno,
@@ -772,28 +704,31 @@ function theme_charge_log_form($variables) {
 function charge_log_form_submit($form, &$form_state) {
 	switch($form_state['triggering_element']['#name']) {
 	case 'search':
-		user_cookie_save(array(
-			'user_uid' => trim($form_state['values']['uid']),
-			'user_username' => trim($form_state['values']['username']),
-			'orders_orderno' => trim($form_state['values']['orderno']),
-			'orders_orderdate' => trim($form_state['values']['orderdate']),
-			'orders_status' => trim($form_state['values']['status']),
-			'orders_gateway' => trim($form_state['values']['ordergateway']),
-		));
+		unset($form_state['storage']);
+		if(!empty($form_state['values']['idcard_num']))
+			$form_state['storage']['idcard_num']=trim($form_state['values']['idcard_num']);
+		if(!empty($form_state['values']['username']))
+			$form_state['storage']['username']=trim($form_state['values']['username']);
+		if(!empty($form_state['values']['orderno']))
+			$form_state['storage']['orderno']=trim($form_state['values']['orderno']);
+		if(isset($form_state['values']['orderstatus']) && $form_state['values']['orderstatus']<>'-1')
+			$form_state['storage']['orderstatus']=trim($form_state['values']['orderstatus']);
+		$form_state['rebuild']=TRUE;
 		break;
 	case 'clearall':
-		$cookies=array('user_uid', 'user_username', 'orders_orderno', 'orders_orderdate', 'orders_gateway', 'orders_status');
-		foreach($cookies as $c) {
-			user_cookie_delete($c);
-		}
+		unset($form_state['storage']);
 		break;
 	default:
 		if(preg_match('/^payoffline/', $form_state['triggering_element']['#name'])) {
 			$orderno=substr($form_state['triggering_element']['#name'],-20);
-			db_update('orders')->condition('orderno',$orderno)->fields(array(
+			db_insert('orders_process')->fields(array(
+				'orderno' => $orderno,
+				'timestamp' => time(),
 				'gateway' => 'offline',
-				'gatewaytransactionno' => NULL,
-				'gatewaysettledate' => date('md'),
+				'transno' => sprintf("%s%6d", $orderno, rand(0,999999)),
+				'amount' => db_query('SELECT amount FROM {orders} WHERE orderno=:orderno',array(':orderno'=>$orderno))->fetchField()
+			))->execute();
+			db_update('orders')->condition('orderno',$orderno)->fields(array(
 				'status' => 100
 			))->execute();
 			watchdog('onlinecharge',
@@ -804,24 +739,14 @@ function charge_log_form_submit($form, &$form_state) {
 				l(t('View'), 'charge/log/'.$orderno)
 			);
 			drupal_set_message(t('Order @orderno status updated.',array('@orderno'=>$orderno)));
-			user_cookie_save(array(
-				'orders_orderno' => $orderno,
-			));
-			user_cookie_delete('orders_orderdate');
-			user_cookie_delete('orders_gateway');
-			user_cookie_delete('orders_status');
+			unset($form_state['storage']);
+			$form_state['storage']['orderno']=$orderno;
+			$form_state['rebuild']=TRUE;
 		}
 		if(preg_match('/^setfail/', $form_state['triggering_element']['#name'])) {
 			$orderno=substr($form_state['triggering_element']['#name'],-20);
 			db_update('orders')->condition('orderno',$orderno)->fields(array(
-				'gateway' => NULL,
-				'gatewaytransactionno' => NULL,
-				'gatewaysettledate' => NULL,
 				'status' => 0
-			))->execute();
-			$neworderno=charge_generate_random_orderno();
-			db_update('orders')->condition('orderno',$orderno)->fields(array(
-				'orderno' => $neworderno
 			))->execute();
 			watchdog('onlinecharge',
 				'@orderno set as failed.', array(
@@ -830,24 +755,32 @@ function charge_log_form_submit($form, &$form_state) {
 				WATCHDOG_INFO,
 				l(t('View'), 'charge/log/'.$neworderno)
 			);
-			drupal_set_message(t('Order @orderno status updated. The new order number is @new.',array('@orderno'=>$orderno, '@new'=>$neworderno)), 'error');
-			user_cookie_save(array(
-				'orders_orderno' => $neworderno,
-			));
-			user_cookie_delete('orders_orderdate');
-			user_cookie_delete('orders_gateway');
-			user_cookie_delete('orders_status');
+			drupal_set_message(t('Order @orderno status updated.',array('@orderno'=>$orderno)));
+			unset($form_state['storage']);
+			$form_state['storage']['orderno']=$orderno;
+			$form_state['rebuild']=TRUE;
 		}
 		if(preg_match('/^requery/', $form_state['triggering_element']['#name'])) {
 			$orderno=substr($form_state['triggering_element']['#name'],-20);
-			$r=db_select('orders','o')->condition('o.orderno',$orderno)->fields('o')->execute()->fetchObject();
-			$t=module_invoke($r->gateway, 'querystatus', $orderno, $r->ordertime);
+			$r=db_query('SELECT * FROM {orders_process} WHERE orderno=:orderno AND transno=:orderno AND amount=0',
+				array(':orderno'=>$orderno))->fetchObject();
+			if(!$r) return;
+			$t=module_invoke($r->gateway, 'querystatus', $orderno, $r->timestamp);
 			if(is_array($t)) {
-				db_update('orders')->condition('orderno',$r->orderno)->fields(array(
-					'gatewaytransactionno' => $t[$r->gateway]['transactionno'],
-					'gatewaysettledate' => isset($t[$r->gateway]['settledate'])?$t[$r->gateway]['settledate']:date('md'),
-					'status' => 100,
+				db_merge('orders_process')->key(array('orderno'=>$orderno, 'transno'=>$t[$r->gateway]['transactionno']))->fields(array(
+					'orderno' => $orderno,
+					'timestamp' => time(),
+					'gateway' => $r->gateway,
+					'transno' => $t[$r->gateway]['transactionno'],
+					'amount' => $t[$r->gateway]['amount'],
 				))->execute();
+				$amount=db_query(
+					'SELECT o.amount, SUM(op.amount) as opamount FROM {orders} o LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
+					'WHERE o.orderno=:orderno GROUP BY o.orderno', array(':orderno'=>$orderno))->fetchObject();
+				if($amount->amount==$amount->opamount)
+					db_update('orders')->condition('orderno',$r->orderno)->fields(array(
+						'status' => 100,
+					))->execute();
 				watchdog('onlinecharge',
 					'@orderno payment succeeded via @gateway.', array(
 						'@orderno' => $r->orderno,
@@ -857,17 +790,12 @@ function charge_log_form_submit($form, &$form_state) {
 					l(t('View'), 'charge/log/'.$r->orderno)
 				);
 				drupal_set_message(t('Order @orderno status updated.',array('@orderno'=>$orderno)));
-				user_cookie_save(array(
-					'orders_orderno' => $orderno,
-				));
-				user_cookie_delete('orders_orderdate');
-				user_cookie_delete('orders_gateway');
-				user_cookie_delete('orders_status');
+				unset($form_state['storage']);
+				$form_state['storage']['orderno']=$orderno;
+				$form_state['rebuild']=TRUE;
 			} else {
-				if($t==charge_PAYMENT_INVALID || $t==charge_PAYMENT_FAILED ) {
+				if($t==onlinecharge_PAYMENT_INVALID || $t==onlinecharge_PAYMENT_FAILED ) {
 					db_update('orders')->condition('orderno',$r->orderno)->fields(array(
-						'gatewaytransactionno' => NULL,
-						'gatewaysettledate' => NULL,
 						'status' => 0,
 					))->execute();
 					drupal_set_message(t('Order @orderno process failed.',array('@orderno'=>$orderno)), 'error');
@@ -879,30 +807,26 @@ function charge_log_form_submit($form, &$form_state) {
 						WATCHDOG_ERROR,
 						l(t('View'), 'charge/log/'.$r->orderno)
 					);
-					user_cookie_save(array(
-						'orders_orderno' => $orderno,
-					));
-					user_cookie_delete('orders_orderdate');
-					user_cookie_delete('orders_gateway');
-					user_cookie_delete('orders_status');
+					unset($form_state['storage']);
+					$form_state['storage']['orderno']=$orderno;
+					$form_state['rebuild']=TRUE;
 				} else {
 					drupal_set_message(t('Order @orderno status is not updated.',array('@orderno'=>$orderno)), 'warning');
 				}
 			}
 		}
 	}
-	drupal_goto('charge/log');
 }
 
 function charge_cron() {
-	$result=db_select('orders','o')->condition('o.status','100','<>')->condition('o.status','0','<>')->isNotNull('o.gateway')->fields('o',array('orderno','gateway','status','ordertime'))->execute();
+	$result=db_query('SELECT o.orderno, o.status, o.ordertime, op.gateway FROM {orders} o '.
+		'INNER JOIN {orders_process} op ON o.orderno=op.orderno AND o.orderno=op.transno '.
+		'WHERE o.status <> 0 AND o.status <> 100 AND op.gateway IS NOT NULL'
+	);
 	if(!$result) return;
 	foreach($result as $r) {
 		if($r->status==15) {
 			db_update('orders')->condition('orderno',$r->orderno)->fields(array(
-				'gateway' => NULL,
-				'gatewaytransactionno' => NULL,
-				'gatewaysettledate' => NULL,
 				'status' => 0,
 			))->execute();
 			watchdog('onlinecharge',
@@ -919,11 +843,27 @@ function charge_cron() {
 		if(!module_hook($r->gateway, 'querystatus')) continue;
 		$t=module_invoke($r->gateway, 'querystatus', $r->orderno, $r->ordertime);
 		if(is_array($t)) {
+			db_merge('orders_process')
+				->key(array('orderno'=>$r->orderno, 'gateway'=>$r->gateway, 'transno'=>$t[$r->gateway]['transactionno']))
+				->fields(array(
+					'orderno'=>$r->orderno,
+					'gateway'=>$r->gateway,
+					'transno'=>$t[$r->gateway]['transactionno'],
+					'timestamp'=time(),
+					'amount'=>$t[$r->gateway]['amount'],
+			))->execute();
 			db_update('orders')->condition('orderno',$r->orderno)->fields(array(
 				'gatewaytransactionno' => $t[$r->gateway]['transactionno'],
 				'gatewaysettledate' => isset($t[$r->gateway]['settledate'])?$t[$r->gateway]['settledate']:date('md'),
 				'status' => 100,
 			))->execute();
+			$amount=db_query(
+				'SELECT o.amount, SUM(op.amount) as opamount FROM {orders} o LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
+				'WHERE o.orderno=:orderno GROUP BY o.orderno', array(':orderno'=>$r->orderno))->fetchObject();
+			if($amount->amount==$amount->opamount)
+				db_update('orders')->condition('orderno',$r->orderno)->fields(array(
+					'status' => 100,
+				))->execute();
 			watchdog('onlinecharge',
 				'@orderno payment succeeded via @gateway.', array(
 					'@orderno' => $r->orderno,
@@ -953,18 +893,76 @@ function charge_cron() {
 	}
 }
 
-function charge_user_logout() {
-	$cookies=array('user_uid', 'user_username', 'orders_orderno', 'orders_orderdate', 'orders_gateway', 'orders_status');
-	foreach($cookies as $c) {
-		user_cookie_delete($c);
-	}
+function order_load($orderno) {
+	$query=db_query('SELECT o.*, s.name, SUM(op.amount) AS transaction_amount FROM {orders} o '.
+		'INNER JOIN {students} s ON o.uid=s.uid '.
+		'LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
+		'WHERE o.orderno=:orderno',
+		array(':orderno'=>$orderno));
+	return $query->fetchObject();
 }
 
-function charge_user_login() {
-	$cookies=array('user_uid', 'user_username', 'orders_orderno', 'orders_orderdate', 'orders_gateway', 'orders_status');
-	foreach($cookies as $c) {
-		user_cookie_delete($c);
+function charge_log_form_detail_form_title($order) {
+	return t('Details for order No. !orderno',array('!orderno'=>$order->orderno));
+}
+
+function charge_log_form_detail($form, $form_state, $order) {
+	$form=array();
+	$form['name']=array(
+		'#type' => 'item',
+		'#title' => t('Real Name'),
+		'#markup' => l($order->name, sprintf('user/%d', $order->uid)),
+	);
+	$form['ordertitle']=array(
+		'#type' => 'item',
+		'#title' => t('Order title'),
+		'#markup' => $order->ordertitle,
+	);
+	$form['orderdate']=array(
+		'#type' => 'item',
+		'#title' => t('Order generating date'),
+		'#markup' => format_date($order->ordertime, 'custom', 'Y-m-d H:i'),
+	);
+	$form['amount']=array(
+		'#type' => 'item',
+		'#title' => t('Order amount'),
+		'#markup' => sprintf('&yen; %d', $order->amount),
+	);
+	$form['transamount']=array(
+		'#type' => 'item',
+		'#title' => t('Total settled amount'),
+		'#markup' => sprintf('&yen; %d', $order->transaction_amount),
+	);
+	$ops=db_query('SELECT * FROM {orders_process} WHERE orderno=:orderno ORDER BY timestamp',array(':orderno'=>$order->orderno));
+	$header=array(
+		t('Transaction time'),
+		t('Summary'),
+		t('Operation'),
+	);
+	$rows=array();
+	if($ops) {
+		foreach($ops as $op) {
+			if($op->amount==0)
+				$summary=t('Transaction submitted to !gateway',array('!gateway'=>$op->gateway));
+			else if($op->amount>0)
+				$summary=t('Charged !amount via !gateway, with transaction number !transno',
+					array('!amount'=>sprintf('&yen; %d', $op->amount), '!gateway'=>$op->gateway, '!trasno'=>$op->transno));
+			else
+				$summary=t('Refund !amount via !gateway with transaction number !transno',
+					array('!amount'=>sprintf('&yen; %d', abs($op->amount)), '!gateway'=>$op->gateway, '!trasno'=>$op->transno));
+			$rows[]=array(
+				format_date($op->timestamp, 'custom', 'Y-m-d H:i'),
+				$summary,
+			);
+		}
 	}
+	if(!empty($rows))
+		$form['transdetail']=array(
+			'#type' => 'item',
+			'#title' => t('Transaction Detail'),
+			'#markup' => theme('table',array('header'=>$header,'rows'=>$rows)),
+		);
+	return $form;
 }
 
 ?>
