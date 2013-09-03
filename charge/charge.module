@@ -849,7 +849,7 @@ function charge_cron() {
 					'orderno'=>$r->orderno,
 					'gateway'=>$r->gateway,
 					'transno'=>$t[$r->gateway]['transactionno'],
-					'timestamp'=time(),
+					'timestamp'=>time(),
 					'amount'=>$t[$r->gateway]['amount'],
 			))->execute();
 			db_update('orders')->condition('orderno',$r->orderno)->fields(array(
