@@ -130,7 +130,7 @@ function student_form_user_register_form_alter(&$form, &$form_state) {
 	if(!user_access('administer users')) {
 		$form['account']['name']['#description']=t('You may select any nick name you like for this.');
 		$form['actions']['submit']['#value']=t('Register and Proceed');
-		drupal_set_title('Register New Account');
+		drupal_set_title(t('Register New Account'));
 		$form['#submit'][] = 'student_form_user_register_form_submit';
 	}
 }
