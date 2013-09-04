@@ -282,7 +282,7 @@ function charge_form_alter_submit(&$form, &$form_state) {
 		'standard' => $obj->caid,
 		'ordertitle' => $form_state['storage']['charge']['ordertitle'],
 		'amount' => $obj->amount,
-		'status' => $obj->amount > 0,
+		'status' => ($obj->amount > 0)?0:100,
 	))->execute();
 	if($r) {
 		$form_state['redirect']='user/payment';
