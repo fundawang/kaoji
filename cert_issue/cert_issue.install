@@ -27,12 +27,10 @@ function cert_issue_schema() {
 			'status' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
 		),
 		'primary key' => array('ciid'),
-		'unique keys' => array(
-			'certid' => array('certid'),
-		),
 		'indexes' => array(
 			'name' => array('name'),
 			'coid' => array('coid'),
+			'ceritd' => array('certid'),
 			'ticket_number' => array('ticket_number'),
 			'idcard_type' => array('idcard_type'),
 			'idcard_number' => array('idcard_number'),
@@ -125,4 +123,13 @@ function cert_issue_update_7005() {
  */
 function cert_issue_update_7006() {
 	db_drop_field('certificates_exchange_rolls', 'cid');
+}
+
+/**
+ * drop the unique index on certid
+ */
+function cert_issue_update_7007() {
+	if(db_index_exists('certificates_issues','certid'))
+		db_drop_unique_key('certificates_issues','certid');
+	db_add_index('certificates_issues','certid',array('certid'));
 }

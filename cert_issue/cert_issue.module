@@ -451,7 +451,6 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 		$objWorksheet = $objPHPExcel->getActiveSheet();
 		$row=$form_state['values']['beginrow'];
 		$max_rows=$objWorksheet->getHighestRow();
-		$certids=array();
 		do {
 			$row=(string)$row;
 	
@@ -464,27 +463,6 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 				break;
 			} 
 
-			
-			if(in_array($certid, $certids)) {
-				form_set_error('certid',
-					t('!cord: Cert id has duplicated value !val.',
-						array('!cord'=>$form_state['values']['certid'].$row, '!val' => $certid)
-					)
-				);
-				break;
-			}
-
-			if(db_query('SELECT EXISTS( SELECT * FROM {certificates_issues} WHERE certid=:certid)', array(':certid'=>$certid))->fetchField()) {
-				form_set_error('certid',
-					t('!cord: The value !val duplicate with existing certids.',
-						array('!cord'=>$form_state['values']['certid'].$row, '!val' => $certid)
-					)
-				);
-				break;
-			}
-			$certids[]=$certid;
-			
-			
 			// Test name
 			$name=trim($objWorksheet->getCell($form_state['values']['name'].$row)->getCalculatedValue());
 			if(empty($name)) {
