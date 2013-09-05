@@ -128,13 +128,15 @@ function certificate_specification_form($form, $form_state) {
 		if($certificate&&$r->series==$certificate->series) $c_series=$i;
 		$i++;
 	}
-	$form['series_caption']=array(
-		'#type' => 'item',
-		'#title' => t('Series'),
-		'#suffix' => '<div class="inline-element-div">',
-		'#required' => TRUE,
+	$form['begin']=array(
+		'#markup' => '<div class="inline-element-div">',
 	);
 	if($i>1) {
+		$form['series_caption']=array(
+			'#type' => 'item',
+			'#title' => t('Series'),
+			'#required' => TRUE,
+		);
 		$series+=array('0'=>t('-- New series --'));
 		$form['series']=array(
 			'#type' => 'select',
