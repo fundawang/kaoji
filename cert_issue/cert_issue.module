@@ -260,6 +260,10 @@ function cert_issue_massiveupload_form_step2($form, $form_state) {
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
 	$file=file_load($form_state['storage']['fid']);
 	$uri = drupal_realpath($file->uri);
+	if(defined('SAE_TMP_PATH')) {
+		file_put_contents( SAE_TMP_PATH . $file->filename, file_get_contents($uri));
+		$uri=SAE_TMP_PATH . $file->filename;
+	}
 	$format=PHPExcel_IOFactory::identify($uri);
 	$objReader = PHPExcel_IOFactory::createReader($format);
 	$objReader->setReadDataOnly(true);
@@ -442,8 +446,11 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 		&& $form_state['values']['birthdate'])
 	{
 		$file=file_load($form_state['storage']['fid']);
-		$wrapper = file_stream_wrapper_get_instance_by_uri($file->uri);
-		$uri = $wrapper->getDirectoryPath() . "/" . file_uri_target($file->uri);
+		$uri=drupal_realpath(($file->uri);
+		if(defined('SAE_TMP_PATH')) {
+			file_put_contents( SAE_TMP_PATH . $file->filename, file_get_contents($uri));
+			$uri=SAE_TMP_PATH . $file->filename;
+		}
 		$format=PHPExcel_IOFactory::identify($uri);
 		$objReader = PHPExcel_IOFactory::createReader($format);
 		$objReader->setReadDataOnly(true);
