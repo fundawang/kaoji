@@ -42,7 +42,7 @@ function charge_schema() {
 		),
 		'primary key' => array('orderno'),
 		'unique keys' => array(
-			'uid_ordertitle' => array('uid', 'order_title')
+			'uid_ordertitle' => array('uid', 'ordertitle')
 		),
 		'indexes' => array(
 			'uid' => array('uid'),

@@ -56,7 +56,6 @@ function cert_issue_schema() {
 		'primary key' => array('cerid'),
 		'indexes' => array(
 			'coid' => array('coid'),
-			'cid' => array('cid'),
 			'cid_orig' => array('cid_orig'),
 			'status' => array('status'),
 		),
