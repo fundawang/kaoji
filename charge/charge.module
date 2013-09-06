@@ -978,4 +978,10 @@ function charge_log_form_detail($form, $form_state, $order) {
 	return $form;
 }
 
+function charge_user_view($user, $view_mode, $langcode) {
+	$query=db_query('SELECT count(*) FROM {orders} WHERE uid=:uid AND status<>100', array(':uid'=>$user->uid));
+
+	if($query->fetchField())
+		drupal_set_message(l(t('There are unpaid orders.'), 'user/payment'), 'warning');
+}
 ?>
