@@ -1251,10 +1251,6 @@ function cert_issue_user_view($user, $view_mode, $langcode) {
 		'INNER JOIN {certificates} c ON co.cid=c.cid '.
 		'WHERE ci.claimedby=0 AND ci.gender=:gender AND ci.date_of_birth=:dateofbirth '.
 		'';
-	$query=db_select('certificates_issues','ci')
-		->condition('ci.claimedby',0)
-		->condition('ci.gender',$student->gender)
-		->fields('ci',array('ciid','certid','name','date_of_birth'));
 	if($student->exname) {
 		$sql.='AND (ci.name=:name OR ci.name=:exname) ';
 	} else
