@@ -1244,6 +1244,33 @@ function cert_issue_form_user_profile_form_alter(&$form, &$form_state) {
 	}
 }
 
+function cert_issue_user_view($user, $view_mode, $langcode) {
+	if(!cert_issue_user_claim_access()) return;
+	$student=student_load($user);
+	$query=db_select('certificates_issues','ci')
+		->condition('ci.claimedby',0)
+		->condition('ci.gender',$student->gender)
+		->fields('ci',array('ciid','certid','name','date_of_birth'));
+	if($student->exname) {
+		$condition=db_or()->condition('ci.name',$student->name)->condition('ci.name',$student->exname);
+		$query->condition($condition);
+		unset($condition);
+	} else
+		$query->condition('ci.name',$student->name);
+	$query->condition('ci.date_of_birth',substr($student->date_of_birth,0,6));
+	$query->innerJoin('certificates_operations','co','co.coid=ci.coid');
+	$query->innerJoin('operations','o','co.oid=o.oid');
+	$query->innerJoin('certificates','c','co.cid=c.cid');
+	$query->addExpression('o.name','oname');
+	$query->addExpression('c.name','cname');
+	$query->fields('c',array('series'));
+	$query->orderBy('o.year')->orderBy('o.oid')->orderBy('c.cid');
+	if($query->execute()->rowCount()) {
+		drupal_set_message(t('There might be some certificates for you to claim.'));
+		drupal_goto('user/claim');
+	}
+}
+
 /**
  * Implementation of hook_charge_accounts().
  */
