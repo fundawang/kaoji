@@ -13,13 +13,14 @@ function charge_requirements($phase) {
 
 	if ($phase == 'runtime') {
 		$t = get_t();
-		$num=db_select('orders','o')->fields('o')->countQuery()->execute()->fetchField();
-		$succeeded=db_select('orders','o')->fields('o')->condition('o.status',100)->countQuery()->execute()->fetchField();
-		$requirements['onlinecharge'] = array(
-			'title' => t('Online Charging orders'),
-			'severity' => REQUIREMENT_INFO,
-			'value' => t('@num orders have been created, and @succeeded of them succeeded', array('@num' => number_format($num), '@succeeded'=>number_format($succeeded))),
-		);
+		$num=db_query('SELECT count(*) FROM {orders}')->fetchField();
+		$succeeded=db_query('SELECT count(*) FROM {orders} WHERE status=100')->fetchField();
+		if($num)
+			$requirements['onlinecharge'] = array(
+				'title' => t('Online Charging orders'),
+				'severity' => REQUIREMENT_INFO,
+				'value' => t('@num orders have been created, and @succeeded of them succeeded', array('@num' => number_format($num), '@succeeded'=>number_format($succeeded))),
+			);
 	}
 	return $requirements;
 }

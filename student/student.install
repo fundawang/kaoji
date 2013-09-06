@@ -70,8 +70,7 @@ function student_update_7001() {
 	);
 	db_add_field('students', 'gender', $gender, $index);
 	db_update('students')->fields(array('gender'=>0))->condition('idcard_type',0,'<>')->execute();
-	$query=db_select('students','s')->fields('s',array('uid','idcard_number'))->condition('idcard_type',0);
-	$dbo=$query->execute();
+	$dbo=db_query('SELECT uid,idcard_number FROM {students} WHERE idcard_type=0');
 	foreach($dbo as $r) {
 		db_update('students')->condition('uid',$r->uid)->fields(array(
 			'gender' => 2-(substr($r->idcard_number,16,1) % 2),

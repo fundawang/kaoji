@@ -796,12 +796,10 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 		'#title' => t('Add new roll for certificates exchange'),
 		'#collapsible' => TRUE,
 	);
-	$query=db_select('certificates','c')->fields('c')->orderBy('c.series')->orderBy('c.cid');
-	$subquery=db_select('certificates_exchange_rolls','cer')->fields('cer');
-	$subquery->innerJoin('certificates_operations','co','cer.coid=co.coid');
-	$subquery->where('co.cid=c.cid AND (cer.status=2 OR cer.status=0)');
-	$query->notExists($subquery);
-	$rdbo=$query->execute();
+	$rdbo=db_query('SELECT c.* FROM {certificates} c WHERE NOT EXISTS(SELECT cer.* FROM {certificates_exchange_rolls} cer '.
+		'INNER JOIN {certificates_operations} co ON cer.coid=co.coid '.
+		'WHERE co.cid=c.cid AND (cer.status=2 OR cer.status=0) '.
+		')');
 	$options=array();
 	foreach($rdbo as $r) {
 		$options+=array(
