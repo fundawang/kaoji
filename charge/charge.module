@@ -327,6 +327,7 @@ function charge_user_orders($form, $form_state) {
 					'#value' => t('Pay'),
 					'#attached' => array('js'=>array(''=>'inline')),
 				);
+				break;
 			case 15:
 			case 14:
 			case 13:
