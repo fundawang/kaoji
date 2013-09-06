@@ -324,6 +324,19 @@ function charge_user_orders($form, $form_state) {
 					'#type' => 'submit',
 					'#name' => 'paybutton_'.$r->orderno,
 					'#value' => t('Pay'),
+					'#attached' => array('js'=>array(''=>'inline')),
+				);
+			case 15:
+			case 14:
+			case 13:
+			case 12:
+			case 11:
+			case 10:
+				$form['order_'.$r->orderno]['operation']=array(
+					'#type' => 'submit',
+					'#name' => 'paybutton_'.$r->orderno,
+					'#value' => t('RePay'),
+					'#attributes' => array('onclick'=>'if(!confirm("'.t('Are you sure you did not pay the order?').'")) return false;')
 				);
 		}
 		$process=db_query('SELECT amount FROM {orders_process} WHERE orderno=:orderno AND amount<>0 ORDER BY timestamp',
@@ -407,7 +420,7 @@ function charge_user_orders_submit($form, $form_state) {
 		'amount' => 0,
 	))->execute();
 	db_update('orders')->condition('orderno',$orderno)->fields(array(
-		'status' => onlinecharge_PAYMENT_PROCESSING,
+		'status' => 10,
 	))->execute();
 	$student=student_load($GLOBALS['user']);
 	$_form_state['values']=array(
@@ -937,7 +950,6 @@ function charge_log_form_detail($form, $form_state, $order) {
 	$header=array(
 		t('Transaction time'),
 		t('Summary'),
-		t('Operation'),
 	);
 	$rows=array();
 	if($ops) {
@@ -946,10 +958,10 @@ function charge_log_form_detail($form, $form_state, $order) {
 				$summary=t('Transaction submitted to !gateway',array('!gateway'=>$op->gateway));
 			else if($op->amount>0)
 				$summary=t('Charged !amount via !gateway, with transaction number !transno',
-					array('!amount'=>sprintf('&yen; %d', $op->amount), '!gateway'=>$op->gateway, '!trasno'=>$op->transno));
+					array('!amount'=>sprintf('&yen; %d', $op->amount), '!gateway'=>$op->gateway, '!transno'=>$op->transno));
 			else
 				$summary=t('Refund !amount via !gateway with transaction number !transno',
-					array('!amount'=>sprintf('&yen; %d', abs($op->amount)), '!gateway'=>$op->gateway, '!trasno'=>$op->transno));
+					array('!amount'=>sprintf('&yen; %d', abs($op->amount)), '!gateway'=>$op->gateway, '!transno'=>$op->transno));
 			$rows[]=array(
 				format_date($op->timestamp, 'custom', 'Y-m-d H:i'),
 				$summary,
