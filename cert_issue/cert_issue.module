@@ -1285,7 +1285,7 @@ function cert_issue_user_view($user, $view_mode, $langcode) {
 function cert_issue_massiveupload_query_form($form, $form_state) {
 	$form['citera']=array(
 		'#type' => 'fieldset',
-		'#title' => t('Serach citera'),
+		'#title' => t('Search citera'),
 		'#collapsible' => TRUE,
 		'#collapsed' => !empty($form_state['storage'])
 	);
