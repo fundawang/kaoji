@@ -1428,6 +1428,7 @@ function cert_issue_massiveupload_query_form($form, $form_state) {
 					$r->certid,
 					$r->name,
 					empty($r->uid)?t('None'):l($r->sname, 'user/'.$r->uid),
+					empty($r->claimedby)?'':l(t('Revoke'), sprintf('certificate/massiveupload/revoke/%s/%s', $r->ciid, $r->claimedby))
 				);
 			$i++;
 		}
@@ -1441,7 +1442,8 @@ function cert_issue_massiveupload_query_form($form, $form_state) {
 			t('Certificate Specification'),
 			t('Certificate Number'),
 			t('Certificate Name'),
-			t('Claimed by')
+			t('Claimed by'),
+			t('Operation')
 		);
 		if(empty($rows)) {
 			$form['table']=array('#markup' => '<div>'.t('There is no certificates matching your citeras.').'</div>');
