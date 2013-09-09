@@ -727,8 +727,8 @@ function cert_issue_user_certs_page() {
 	return $output;
 }
 
-function cert_issue_user_claim_access() {
-	$user=$GLOBALS['user'];
+function cert_issue_user_claim_access($user=NULL) {
+	if(empty($user)) $user=$GLOBALS['user'];
 	if(isset($user->uid) && $user->uid && user_access('claim certificates')) {
 		$student=student_load($user);
 		if(!$student) return FALSE;
@@ -1267,28 +1267,114 @@ function cert_issue_form_user_profile_form_alter(&$form, &$form_state) {
 }
 
 function cert_issue_user_view($user, $view_mode, $langcode) {
-	if(!cert_issue_user_claim_access()) return;
-	$student=student_load($user);
-	$sql='SELECT count(*) '.
-		'FROM {certificates_issues} ci INNER JOIN {certificates_operations} co ON co.coid=ci.coid '.
-		'INNER JOIN {operations} o ON co.oid=o.oid '.
-		'INNER JOIN {certificates} c ON co.cid=c.cid '.
-		'WHERE ci.claimedby=0 AND ci.gender=:gender AND ci.date_of_birth=:dateofbirth '.
-		'';
-	if($student->exname) {
-		$sql.='AND (ci.name=:name OR ci.name=:exname) ';
-	} else
-		$sql.='AND (ci.name=:name AND :exname=:exname)';
-	$query=db_query($sql, array(
-		':gender'=>$student->gender, ':name'=>$student->name,
-		':exname'=>empty($student->exname)?'':$student->exname,
-		':dateofbirth'=>substr($student->date_of_birth,0,6)
+	if(!student_load($user)) return;
+	// If we should redirect the url when there are certificate to claim
+	if(cert_issue_user_claim_access($user) && $GLOBALS['user']->uid==$user->uid) {
+		$student=student_load($user);
+		$sql='SELECT count(*) '.
+			'FROM {certificates_issues} ci INNER JOIN {certificates_operations} co ON co.coid=ci.coid '.
+			'INNER JOIN {operations} o ON co.oid=o.oid '.
+			'INNER JOIN {certificates} c ON co.cid=c.cid '.
+			'WHERE ci.claimedby=0 AND ci.gender=:gender AND ci.date_of_birth=:dateofbirth '.
+			'';
+		if($student->exname) {
+			$sql.='AND (ci.name=:name OR ci.name=:exname) ';
+		} else
+			$sql.='AND (ci.name=:name AND :exname=:exname)';
+		$query=db_query($sql, array(
+			':gender'=>$student->gender, ':name'=>$student->name,
+			':exname'=>empty($student->exname)?'':$student->exname,
+			':dateofbirth'=>substr($student->date_of_birth,0,6)
 		));
-	if($query->fetchField()) {
-		if(strstr($_SERVER['HTTP_REFERER'], sprintf('%s%suser/%s/edit', $_SERVER['HTTP_HOST'], base_path(), $user->uid)))
-			drupal_goto('user/claim');
-		else 
-			drupal_set_message(l(t('There might be some certificates for you to claim.'), 'user/claim'), 'warning');
+		if($query->fetchField()) {
+			if(strstr($_SERVER['HTTP_REFERER'], sprintf('%s%suser/%s/edit', $_SERVER['HTTP_HOST'], base_path(), $user->uid))) {
+				drupal_goto('user/claim'); return;
+			}
+			else 
+				drupal_set_message(l(t('There might be some certificates for you to claim.'), 'user/claim'), 'warning');
+		}
+	}
+
+	// Now the certificate section
+	$count=db_query('SELECT EXISTS(SELECT * FROM {certificates_issues} WHERE claimedby=:uid)', array(':uid'=>$user->uid))->fetchField();
+	if($count) {
+		$user->content['cert']=array(
+			'#type' => 'user_profile_category',
+			'#title' => t('Certificates'),
+			'#weight' => '2',
+		);
+		$query=db_query('SELECT ci.certid, ci.claimedby, c.name as cname, c.series FROM {certificates_issues} ci '.
+			'INNER JOIN {certificates_operations} co ON co.coid=ci.coid '.
+			'INNER JOIN {operations} o ON co.oid=o.oid '.
+			'INNER JOIN {certificates} c ON co.cid=c.cid '.
+			'WHERE claimedby=:uid AND ci.cerid IS NULL ORDER BY ci.certid',
+			array(':uid'=>$user->uid)
+		);
+		$header=array(
+			t('Series'),
+			t('Specification'),
+			t('Certificate Number')
+		);
+		if($GLOBALS['user']->uid!=$user->uid && user_access('preload certificates'))
+			$header[]=t('Operation');
+		$rows=array();
+		$i=0;
+		foreach($query as $r) {
+			$rows[$i]=array(
+				$r->series,
+				$r->cname,
+				$r->certid
+			);
+			if($GLOBALS['user']->uid!=$user->uid && user_access('preload certificates'))
+				$rows[$i][]=l(t('Revoke'), sprintf('certificate/massiveupload/revoke/%s/%s', $r->certid, $r->claimedby));
+			if(++$i > 3) {
+				$rows[$i]=array(
+					array('data'=>l(t('More certificates...'), 'user/certs'), 'colspan'=>3)
+				);
+				break;
+			}
+		}
+		$user->content['cert']['claimed']=array(
+			'#type' => 'user_profile_item',
+			'#title' => t('Claimed Certificates'),
+			'#markup'=>theme('table',array('header'=>$header, 'rows'=>$rows))
+		);
+	}
+
+	// Now the certificate exchange section
+	$count=db_query('SELECT EXISTS(SELECT * FROM {certificates_issues} WHERE claimedby=:uid AND cerid IS NOT NULL)', array(':uid'=>$user->uid))->fetchField();
+	if($count) {
+		$header=array(
+			t('Specification'),
+			t('Status')
+		);
+		if($GLOBALS['user']->uid!=$user->uid && user_access('admin certificates exchange rolls'))
+			$header[]=t('Operation');
+		$query=db_query('SELECT ci.cerid, ci.ciid, c.name as cname, ci.status FROM {certificates_issues} ci '.
+			'INNER JOIN {certificates_operations} co ON co.coid=ci.coid '.
+			'INNER JOIN {operations} o ON co.oid=o.oid '.
+			'INNER JOIN {certificates} c ON co.cid=c.cid '.
+			'WHERE claimedby=:uid AND ci.cerid IS NOT NULL ORDER BY ci.status DESC, ci.cerid DESC, c.cid',
+			array(':uid'=>$user->uid)
+		);
+		$rows=array();
+		$i=0;
+		foreach($query as $r) {
+			$rows[$i++]=array(
+				$r->cname,
+				_cert_issue_get_status_text($r->status),
+			);
+			if($GLOBALS['user']->uid!=$user->uid && user_access('admin certificates exchange rolls'))
+				if($r->status>0)
+					$rows[$i-1][]=l(t('Reject'), sprintf('certificate/exchangerolls/reject/%s/%s', $r->cerid, $r->ciid));
+				else
+					$rows[$i-1][]='';
+		}
+		$user->content['cert']['certs']=array(
+			'#type' => 'user_profile_item',
+			'#title' => t('Applied certificates exchange'),
+			'#markup'=>theme('table',array('header'=>$header, 'rows'=>$rows))
+		);
 	}
 }
 
