@@ -574,6 +574,8 @@ function student_user_view_alter(&$build) {
  * Implementation of object_load().
  */
 function student_load($user) {
+	if(empty($user)) return FALSE;
+	if(!is_object($user)) $user=user_load($user);
 	if($user && $user->uid) {
 		$obj=db_query('SELECT * FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid))->fetchObject();
 		if(!$obj) return FALSE;
