@@ -1575,7 +1575,6 @@ function cert_issue_revoke_cert_form($form, &$form_state, $cert, $student) {
 	$form_state['storage']['ciid']=$cert->ciid;
 	$form_state['storage']['certid']=$cert->certid;
 	$form_state['storage']['uid']=$student->uid;
-	$form_state['storage']['redirect']=empty($_SERVER['HTTP_REFERER'])?'certificate/massiveupload/query':$_SERVER['HTTP_REFERER'];
 	$form['certname']=array(
 		'#type' => 'item',
 		'#title' => t('Specification'),
@@ -1600,7 +1599,7 @@ function cert_issue_revoke_cert_form($form, &$form_state, $cert, $student) {
 		'#title' => t('Claimed by'),
 		'#markup' => t('!name (!gender, birth date: !birth)',
 			array('!name'=>$student->name,
-				'!gender'=>(empty($student->exname)?'':t('Exname !exname,',array('!exname'=>$student->exname))).$student->gender==1?t('Male'):t('Female'),
+				'!gender'=>((empty($student->exname)?'':t('Exname !exname,',array('!exname'=>$student->exname)))).($student->gender==1?t('Male'):t('Female')),
 				'!birth'=>$student->date_of_birth)
 			),
 	);
@@ -1612,14 +1611,14 @@ function cert_issue_revoke_cert_form($form, &$form_state, $cert, $student) {
 	);
 }
 
-function cert_issue_revoke_cert_form_submit($form, $form_state) {
+function cert_issue_revoke_cert_form_submit($form, &$form_state) {
 	$r=db_update('certificates_issues')->condition('ciid',$form_state['storage']['ciid'])
 		->condition('claimedby', $form_state['storage']['uid'])->fields(array(
 			'claimedby' => 0
 		))->execute();
 	if($r)
 		drupal_set_message(t('Certificate No.!no is revoked.', array('!no'=>$form_state['storage']['certid'])));
-	$form_state['redirect']=$form_state['storage']['redirect'];
+	$form_state['redirect']='certificate/massiveupload/query';
 }
 
 /**
