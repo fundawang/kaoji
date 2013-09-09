@@ -13,6 +13,7 @@ function cert_issue_schema() {
 		'fields' => array(
 			'ciid' => array('type' => 'serial', 'not null' => TRUE),
 			'coid' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+			'cerid' => array('type' => 'int', 'not null' => FALSE, 'default' => NULL),
 			'certid' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE, 'default' => ''),
 			'ticket_number' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
 			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
@@ -30,6 +31,7 @@ function cert_issue_schema() {
 		'indexes' => array(
 			'name' => array('name'),
 			'coid' => array('coid'),
+			'cerid' => array('cerid'),
 			'ceritd' => array('certid'),
 			'ticket_number' => array('ticket_number'),
 			'idcard_type' => array('idcard_type'),
@@ -131,4 +133,17 @@ function cert_issue_update_7007() {
 	if(db_index_exists('certificates_issues','certid'))
 		db_drop_unique_key('certificates_issues','certid');
 	db_add_index('certificates_issues','certid',array('certid'));
+}
+
+/**
+ * add cerid into cert_issue
+ */
+function cert_issue_update_7008() {
+	$cerid = array('type' => 'int', 'not null' => FALSE, 'default' => NULL);
+	$index=array(
+		'indexes' => array(
+			'cerid' => array('cerid')
+		)
+	);
+	db_add_field('certificates_issues', 'cerid', $cerid, $index);
 }

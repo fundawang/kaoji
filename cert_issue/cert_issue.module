@@ -107,6 +107,15 @@ function cert_issue_menu() {
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin certificates exchange rolls'),
 	);
+	$items['certificate/exchangerolls/%rollsview'] = array(
+		'type' => MENU_VISIBLE_IN_BREADCRUMB,
+		'title callback' => 'cert_issue_exchange_rolls_view_form_title', 
+		'title arguments' => array(2),
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('cert_issue_exchange_rolls_view_form', 2),
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates exchange rolls'),
+	);
 	$items['user/certs'] = array(
 		'title' => 'My certificates',
 		'menu_name' => 'user-menu',
@@ -932,7 +941,7 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 				);
 				break;
 			case 2: // it is not open.
-				$form['rolls']['status'][$r->cerid]=array('#markup'=>t('Ongoing'));
+				$form['rolls']['status'][$r->cerid]=array('#markup'=>l(t('Ongoing'), 'certificate/exchangerolls/'.$r->cerid, array('attributes'=>array('title'=>t('Click for details')))));
 				$form['rolls']['submit'.$r->cerid]=array(
 					'#type' => 'submit',
 					'#name' => 'close'.$r->cerid,
@@ -942,7 +951,7 @@ function cert_issue_exchange_rolls_form($form, &$form_state) {
 				);
 				break;
 			case 1: // it is closed
-				$form['rolls']['status'][$r->cerid]=array('#markup'=>t('Closed'));
+				$form['rolls']['status'][$r->cerid]=array('#markup'=>l(t('Closed'), 'certificate/exchangerolls/'.$r->cerid, array('attributes'=>array('title'=>t('Click for details')))));
 				$form['rolls']['submit'.$r->cerid]=array('#markup'=>'');
 		}
 	}
@@ -1087,13 +1096,13 @@ function cer_load($cer) {
 	$obj->cid_orig=$cid_orig;
 	$cids=array();
 	foreach($cid_orig as $cid) {
-		$cids[]=db_query('SELECT name FROM {certificates} WHERE cid=:cid',array(':cid'=>$cid))->fetchField();
+		$cids[$cid]=db_query('SELECT name FROM {certificates} WHERE cid=:cid',array(':cid'=>$cid))->fetchField();
 	}
 	$obj->cname_orig=$cids;
 	if(count($cids)>1)
 		$c='<ul><li>'.implode('</li><li>',$cids).'</li></ul>';
 	else
-		$c=$cids[0];
+		$c=$cids[$cid];
 	$obj->cname_orig_formatted=$c;
 	return $obj;
 }
@@ -1230,6 +1239,7 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 	$cer=$form_state['build_info']['args'][0];
 	$r=db_insert('certificates_issues')->fields(array(
 		'coid' => $cer->coid,
+		'cerid' => $cer->cerid,
 		'name' => $student->name,
 		'foreign_name' => $student->foreign_name,
 		'idcard_type' => $student->idcard_type,
@@ -1370,6 +1380,86 @@ function cert_issue_massiveupload_query_form_submit($form, &$form_state) {
 			$form_state['storage']['name'] = trim($form_state['values']['name']);
 			$form_state['storage']['certid'] = trim($form_state['values']['certid']);
 		}
+}
+
+function rollsview_load($cerid) {
+	$cer=cer_load($cerid);
+	if(!empty($cer) && $cer->status >0 ) return $cer;
+	else return FALSE;
+}
+
+function cert_issue_exchange_rolls_view_form_title($cer) {
+	return t('Details for exchanging @cname', array('@cname'=>$cer->cname));
+}
+
+function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
+	$totalnum=db_query('SELECT count(*) FROM {certificates_issues} WHERE cerid=:cerid', array(':cerid'=>$cer->cerid))->fetchField();
+	$form['total']=array(
+		'#markup' => t('There are !num students who had applied exchanging this certificate.', array('!num'=>$totalnum))
+	);
+	$header=array(
+		array('data'=>t('Real Name'), 'field'=>'claimedby'),
+		array('data'=>t('IDCard Number'), 'field'=>'ci.idcard_number'),
+		t('Original certificate ID'),
+		array('data'=>t('Status'), 'field'=>'ci.status', 'sort'=>'desc'),
+	);
+	$query=db_select('certificates_issues','ci')->fields('ci')->condition('ci.cerid',$cer->cerid)
+		->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(10);
+	$rdbo=$query->execute();
+	$rows=array();
+	unset($form_state['storage']['ciid']);
+	foreach($rdbo as $r) {
+		$student=student_load(user_load($r->claimedby));
+		$certs=array();
+		foreach($cer->cid_orig as $cid) {
+			$cert=db_query('SELECT certid FROM {certificates_issues} WHERE claimedby=:uid AND status=0', array(':uid'=>$r->claimedby))
+				->fetchObject();
+			$certs[]=sprintf('%s: %s', $cer->cname_orig[$cid], $cert->certid);
+		}
+		if(count($cer->cid_orig) > 1)
+			$certs_str='<ul><li>'.implode($certs,'</li><li>').'</li></ul>';
+		else
+			$certs_str=$certs[0];
+
+		$rows[]=array(
+			l(
+				sprintf('<img src="%s" style="vertical-align: middle; padding: 5px; width: 60px"/>%s',
+					$student->picture, $student->name),
+				'user/'.$r->claimedby,
+				array('html'=>TRUE, 'attributes'=>array('title'=>t('Click for details')))),
+			$r->idcard_number,
+			$certs_str,
+			_cert_issue_get_status_text($r->status),
+		);
+		if($r->status)
+			$form_state['storage']['ciid'][]=$r->ciid;
+	}
+	$form['table']=array(
+		'#markup' => theme('table', array('header'=>$header, 'rows'=>$rows, 'empty'=>t('There are no students to display.')))
+	);
+	if(!empty($rows)) {
+		if(!empty($form_state['storage']['ciid'])) {
+			$form['reject']=array(
+				'#markup' => t('If you want to reject certain application, please go to user\'s page.')
+			);
+			$form['confirm']=array(
+				'#type' => 'submit',
+				'#value' => t('Mark all applications in this page as approved'),
+				'#prefix' => t('Otherwise, you could')
+			);
+		}
+		$form['pager']=array('#markup'=>theme('pager'));
+	}
+	return $form;
+}
+
+function cert_issue_exchange_rolls_view_form_submit($form, &$form_state) {
+	$i=0;
+	foreach($form_state['storage']['ciid'] as $ciid)
+		$i+=db_update('certificates_issues')->condition('ciid',$ciid)->fields(array(
+			'status' => 0
+		))->execute();
+	drupal_set_message(t('Approved !num students applications.', array('!num'=>$i)));
 }
 
 /**
