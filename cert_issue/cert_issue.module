@@ -99,6 +99,15 @@ function cert_issue_menu() {
 		'access callback' => 'user_access',
 		'access arguments'=> array('preload certificates'),
 	);
+
+	$items['certificate/massiveupload/revoke/%certissue/%student'] = array(
+		'type' => MENU_CALLBACK,
+		'title' => 'Revoke certificate',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('cert_issue_revoke_cert_form', 3, 4),
+		'access callback' => 'user_access',
+		'access arguments'=> array('preload certificates'),
+	);
 	$items['certificate/exchangerolls'] = array(
 		'title' => 'Certificates Exchange Roll Management',
 		'weight' => 4,
@@ -1303,7 +1312,7 @@ function cert_issue_user_view($user, $view_mode, $langcode) {
 			'#title' => t('Certificates'),
 			'#weight' => '2',
 		);
-		$query=db_query('SELECT ci.certid, ci.claimedby, c.name as cname, c.series FROM {certificates_issues} ci '.
+		$query=db_query('SELECT ci.ciid, ci.certid, ci.claimedby, c.name as cname, c.series FROM {certificates_issues} ci '.
 			'INNER JOIN {certificates_operations} co ON co.coid=ci.coid '.
 			'INNER JOIN {operations} o ON co.oid=o.oid '.
 			'INNER JOIN {certificates} c ON co.cid=c.cid '.
@@ -1326,7 +1335,7 @@ function cert_issue_user_view($user, $view_mode, $langcode) {
 				$r->certid
 			);
 			if($GLOBALS['user']->uid!=$user->uid && user_access('preload certificates'))
-				$rows[$i][]=l(t('Revoke'), sprintf('certificate/massiveupload/revoke/%s/%s', $r->certid, $r->claimedby));
+				$rows[$i][]=l(t('Revoke'), sprintf('certificate/massiveupload/revoke/%s/%s', $r->ciid, $r->claimedby));
 			if(++$i > 3) {
 				$rows[$i]=array(
 					array('data'=>l(t('More certificates...'), 'user/certs'), 'colspan'=>3)
@@ -1366,7 +1375,7 @@ function cert_issue_user_view($user, $view_mode, $langcode) {
 			);
 			if($GLOBALS['user']->uid!=$user->uid && user_access('admin certificates exchange rolls'))
 				if($r->status>0)
-					$rows[$i-1][]=l(t('Reject'), sprintf('certificate/exchangerolls/reject/%s/%s', $r->cerid, $r->ciid));
+					$rows[$i-1][]=l(t('Reject'), sprintf('certificate/exchangerolls/%s/reject/%s', $r->cerid, $r->ciid));
 				else
 					$rows[$i-1][]='';
 		}
@@ -1496,12 +1505,12 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 	$rows=array();
 	unset($form_state['storage']['ciid']);
 	foreach($rdbo as $r) {
-		$student=student_load(user_load($r->claimedby));
+		$student=student_load($r->claimedby);
 		$certs=array();
 		foreach($cer->cid_orig as $cid) {
 			$cert=db_query('SELECT certid FROM {certificates_issues} WHERE claimedby=:uid AND status=0', array(':uid'=>$r->claimedby))
 				->fetchObject();
-			$certs[]=sprintf('%s: %s', $cer->cname_orig[$cid], $cert->certid);
+			$certs[]=sprintf('%s: %s', $cer->cname_orig[$cid], empty($cert->certid)?t('None'):$cert->certid);
 		}
 		if(count($cer->cid_orig) > 1)
 			$certs_str='<ul><li>'.implode($certs,'</li><li>').'</li></ul>';
@@ -1547,6 +1556,68 @@ function cert_issue_exchange_rolls_view_form_submit($form, &$form_state) {
 			'status' => 0
 		))->execute();
 	drupal_set_message(t('Approved !num students applications.', array('!num'=>$i)));
+}
+
+function certissue_load($ciid) {
+	return db_query('SELECT ci.*, c.name AS cname, c.series AS series, o.name AS oname FROM {certificates_issues} ci '.
+		'INNER JOIN {certificates_operations} co ON ci.coid=co.coid '.
+		'INNER JOIN {certificates} c ON c.cid=co.cid '.
+		'INNER JOIN {operations} o ON o.oid=co.oid '.
+		'WHERE ciid=:ciid',
+		array(':ciid'=>$ciid))->fetchObject();
+}
+
+function cert_issue_revoke_cert_form($form, &$form_state, $cert, $student) {
+	if($cert->claimedby!=$student->uid) return NULL;
+	$title=t('About to revoke certificate No.!certid', array('!certid'=>$cert->certid));
+	$form_state['storage']['ciid']=$cert->ciid;
+	$form_state['storage']['certid']=$cert->certid;
+	$form_state['storage']['uid']=$student->uid;
+	$form_state['storage']['redirect']=empty($_SERVER['HTTP_REFERER'])?'certificate/massiveupload/query':$_SERVER['HTTP_REFERER'];
+	$form['certname']=array(
+		'#type' => 'item',
+		'#title' => t('Specification'),
+		'#markup' => sprintf('%s %s', $cert->series, $cert->cname)
+	);
+	$form['org']=array(
+		'#type' => 'item',
+		'#title' => t('Organization'),
+		'#markup' => $cert->oname
+	);
+	$form['name']=array(
+		'#type' => 'item',
+		'#title' => t('Name on certificate'),
+		'#markup' => t('!name (!gender, birth date: !birth)',
+			array('!name'=>$cert->name,
+				'!gender'=>$cert->gender==1?t('Male'):t('Female'),
+				'!birth'=>$cert->date_of_birth)
+			),
+	);
+	$form['student']=array(
+		'#type' => 'item',
+		'#title' => t('Claimed by'),
+		'#markup' => t('!name (!gender, birth date: !birth)',
+			array('!name'=>$student->name,
+				'!gender'=>(empty($student->exname)?'':t('Exname !exname,',array('!exname'=>$student->exname))).$student->gender==1?t('Male'):t('Female'),
+				'!birth'=>$student->date_of_birth)
+			),
+	);
+	return confirm_form($form,
+		$title,
+		empty($_SERVER['HTTP_REFERER'])?'certificate/massiveupload/query':$_SERVER['HTTP_REFERER'],
+		t('If the student has applied cert exchange based on this certificate, the request will not be rejected automatically.'),
+		t('Revoke')
+	);
+}
+
+function cert_issue_revoke_cert_form_submit($form, $form_state) {
+	$r=db_update('certificates_issues')->condition('ciid',$form_state['storage']['ciid'])
+		->condition('claimedby', $form_state['storage']['uid'])->fields(array(
+			'claimedby' => 0
+		))->execute();
+	if($r)
+		drupal_set_message(t('Certificate No.!no is revoked.', array('!no'=>$form_state['storage']['certid'])));
+	$form_state['redirect']=$form_state['storage']['redirect'];
 }
 
 /**
