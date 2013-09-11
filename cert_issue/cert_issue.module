@@ -1679,13 +1679,13 @@ function cert_issue_revoke_cert_form($form, &$form_state, $cert, $student) {
 }
 
 function cert_issue_revoke_cert_form_submit($form, &$form_state) {
+	$cert=certissue_load($form_state['storage']['ciid']);
 	$r=db_update('certificates_issues')->condition('ciid',$form_state['storage']['ciid'])
 		->condition('claimedby', $form_state['storage']['uid'])->fields(array(
 			'claimedby' => 0
 		))->execute();
 	if($r) {
 		drupal_set_message(t('Certificate No.!no is revoked.', array('!no'=>$form_state['storage']['certid'])));
-		$cert=certissue_load($form_state['storage']['ciid']);
 		watchdog('certificate',
 			'Revoked !cname certificate !certid of !user.', array(
 				'!user'=>$cert->name,
@@ -1754,11 +1754,11 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 }
 
 function cert_issue_exchange_rolls_reject_form_submit($form, &$form_state) {
+	$cert=certissue_load($form_state['storage']['ciid']);
 	$r=db_delete('certificates_issues')->condition('ciid',$form_state['storage']['ciid'])
 		->execute();
 	if($r) {
 		drupal_set_message(t('!name\'s !cname certificate exchange request is rejected.', array('!name'=>$form_state['storage']['name'], '!cname'=>$form_state['storage']['cname'])));
-		$cert=certissue_load($form_state['storage']['ciid']);
 		watchdog('certificate',
 			'Rejected !cname exchange request of !user.', array(
 				'!user'=>$cert->name,
