@@ -690,6 +690,12 @@ function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
 	unset($form_state['storage']['fid']);
 	$form_state['storage']['step']=1;
 	drupal_set_message(t('!num records are imported.', array('!num'=>$i)));
+	watchdog('certificate',
+		'!num records are imported..', array(
+			'!num'=>$i,
+			),
+		WATCHDOG_INFO
+	);
 }
 
 function cert_issue_massiveupload_form_step2_submit_previous($form, &$form_state) {
@@ -821,8 +827,17 @@ function cert_issue_user_claim_form_submit($form, &$form_state) {
 			'claimedby' => $GLOBALS['user']->uid,
 		))->execute();
 	}
-	if($i)
+	if($i) {
 		drupal_set_message(t('You claimed !num certificates.', array('!num'=>$i)));
+		$certobj=certissue_load($certs);
+		watchdog('certificate',
+			'Claimed certificate !cname !certid.', array(
+				'!cname'=>$certobj->cname,
+				'!certid'=>$certobj->certid,
+				),
+			WATCHDOG_INFO
+		);
+	}
 	if(!cert_issue_user_claim_access())
 		$form_state['redirect']='user/certs';
 }
@@ -1049,10 +1064,26 @@ function cert_issue_exchange_rolls_form_submit($form, $form_state) {
 		'status' => $form_state['values']['enabled']?2:0,
 	))->execute();
 	if($r)
-		if($form_state['values']['enabled'])
+		if($form_state['values']['enabled']) {
 			drupal_set_message(t('Roll added and published.'));
-		else
+			$cname=db_query('SELECT name FROM {certificates} WHERE cid=:cid',array(':cid'=>$form_state['values']['cid']))->fetchField();
+			watchdog('certificate',
+				'Added and published new certificate exchange roll on !cname.', array(
+					'!cname'=>$cname,
+					),
+				WATCHDOG_INFO
+			);
+		}
+		else {
 			drupal_set_message(t('Roll added.'));
+			$cname=db_query('SELECT name FROM {certificates} WHERE cid=:cid',array(':cid'=>$form_state['values']['cid']))->fetchField();
+			watchdog('certificate',
+				'Added new certificate exchange roll on !cname.', array(
+					'!cname'=>$cname,
+					),
+				WATCHDOG_INFO
+			);
+		}
 }
 
 function cert_issue_exchange_rolls_form_open_submit($form, $form_state) {
@@ -1061,6 +1092,13 @@ function cert_issue_exchange_rolls_form_open_submit($form, $form_state) {
 		'status'=>2
 	))->condition('cerid',$cerid)->execute();
 	drupal_set_message(t('Roll opened.'));
+	$cer=cer_load($cerid);
+	watchdog('certificate',
+		'Published certificate exchange roll !cname.', array(
+			'!cname'=>$cer->cname,
+			),
+		WATCHDOG_INFO
+	);
 }
 
 function cert_issue_exchange_rolls_form_close_submit($form, $form_state) {
@@ -1069,6 +1107,13 @@ function cert_issue_exchange_rolls_form_close_submit($form, $form_state) {
 		'status'=>1
 	))->condition('cerid',$cerid)->execute();
 	drupal_set_message(t('Roll closed.'));
+	$cer=cer_load($cerid);
+	watchdog('certificate',
+		'Closed certificate exchange roll !cname.', array(
+			'!cname'=>$cer->cname,
+			),
+		WATCHDOG_INFO
+	);
 }
 
 function cert_issue_user_exchange_page() {
@@ -1269,7 +1314,14 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 	))->execute();
 	if($r) {
 		$form_state['values']['ciid']=$r;
+		$cer=cer_load($cer);
 		drupal_set_message(t('Certificate exchange applied.'));
+		watchdog('certificate',
+			'Applied exchange on certificate !cname.', array(
+				'!cname'=>$cer->cname,
+				),
+			WATCHDOG_INFO
+		);
 		$form_state['redirect'] = 'user/certs';
 	}
 }
@@ -1562,6 +1614,12 @@ function cert_issue_exchange_rolls_view_form_submit($form, &$form_state) {
 			'status' => 0
 		))->execute();
 	drupal_set_message(t('Approved !num students applications.', array('!num'=>$i)));
+	watchdog('user',
+		'Approved !num students applications.', array(
+			'!num'=>$i,
+			),
+		WATCHDOG_INFO
+	);
 }
 
 function certissue_load($ciid) {
@@ -1625,8 +1683,18 @@ function cert_issue_revoke_cert_form_submit($form, &$form_state) {
 		->condition('claimedby', $form_state['storage']['uid'])->fields(array(
 			'claimedby' => 0
 		))->execute();
-	if($r)
+	if($r) {
 		drupal_set_message(t('Certificate No.!no is revoked.', array('!no'=>$form_state['storage']['certid'])));
+		$cert=certissue_load($form_state['storage']['ciid']);
+		watchdog('certificate',
+			'Revoked !cname certificate !certid of !user.', array(
+				'!user'=>$cert->name,
+				'!cname'=>$cert->cname,
+				'!certid'=>$cert->certid
+				),
+			WATCHDOG_INFO
+		);
+	}
 	$form_state['redirect']='certificate/massiveupload/query';
 }
 
@@ -1688,8 +1756,17 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 function cert_issue_exchange_rolls_reject_form_submit($form, &$form_state) {
 	$r=db_delete('certificates_issues')->condition('ciid',$form_state['storage']['ciid'])
 		->execute();
-	if($r)
+	if($r) {
 		drupal_set_message(t('!name\'s !cname certificate exchange request is rejected.', array('!name'=>$form_state['storage']['name'], '!cname'=>$form_state['storage']['cname'])));
+		$cert=certissue_load($form_state['storage']['ciid']);
+		watchdog('certificate',
+			'Rejected !cname exchange request of !user.', array(
+				'!user'=>$cert->name,
+				'!cname'=>$cert->cname,
+				),
+			WATCHDOG_INFO
+		);
+	}
 	$form_state['redirect']='certificate/exchangerolls/'.$form_state['storage']['cerid'];
 }
 
