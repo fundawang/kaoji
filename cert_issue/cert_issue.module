@@ -1642,6 +1642,11 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 	$form_state['storage']['cerid']=$cer->cerid;
 	$form_state['storage']['name']=$student->name;
 	$form_state['storage']['cname']=$cert->cname;
+	$form_state['storage']['charge']=array(
+		'module'=>'cert_issue',
+		'account'=>'certexchange',
+		'ordertitle'=>t('Apply @cname to exchange',array('@cname'=>$cer->cname)),
+	);
 	$title=t('About to reject !name\'s !cname certificate exchange request', array('!name'=>$student->name, '!cname'=>$cert->cname));
 	$form['name']=array(
 		'#type' => 'item',
@@ -1671,12 +1676,6 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 		'#title' => t('Original certificate ID'),
 		'#markup' => $certs_str,
 		'#weight' => 1,
-	);
-	$form['notice']=array(
-		'#markup' => t('Rejecting the request will not refund the fee the student already paid.').
-			t('So that if the student request another exchange within the same roll, he does not need to repay.'),
-		'#weight' => 99,
-
 	);
 	return confirm_form($form,
 		$title,

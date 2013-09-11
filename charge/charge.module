@@ -985,4 +985,31 @@ function charge_user_view($user, $view_mode, $langcode) {
 	if($GLOBALS['user']->uid == $user->uid && $query->fetchField())
 		drupal_set_message(l(t('There are unpaid orders.'), 'user/payment'), 'warning');
 }
+
+function charge_form_cert_issue_exchange_rolls_reject_form_alter(&$form, $form_state) {
+	$amount=db_query(
+		'SELECT o.amount, SUM(op.amount) as opamount FROM {orders} o LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
+		'WHERE o.ordertitle=:ordertitle AND o.uid=:uid GROUP BY o.orderno',
+		array(':ordertitle'=>$form_state['storage']['charge']['ordertitle'], ':uid'=>$form_state['storage']['uid'])
+	)->fetchObject();
+	if($amount) {
+		$form['amount']=array(
+			'#type' => 'item',
+			'#title' => t('Order amount'),
+			'#markup' => sprintf('&yen; %d', $amount->amount),
+			'#weight' => 90,
+		);
+		$form['transamount']=array(
+			'#type' => 'item',
+			'#title' => t('Total settled amount'),
+			'#markup' => sprintf('&yen; %d', $amount->opamount),
+			'#weight' => 91,
+		);
+		$form['notice']=array(
+			'#markup' => t('Rejecting the request will not refund the fee the student already paid.').
+				t('So that if the student request another exchange within the same roll, he does not need to repay.'),
+			'#weight' => 99,
+		);
+	}
+}
 ?>
