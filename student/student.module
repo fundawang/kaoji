@@ -300,11 +300,6 @@ function student_picture($account) {
 	$img_tmp=$query->fetchField();
 	if(!$img_tmp) return NULL;
 	$img=imagecreatefromstring(base64_decode($img_tmp));
-	$newheight=200;
-	$newwidth=imagesx($img)*200/imagesy($img);
-
-	$newimg=imagecreatetruecolor($newwidth, $newheight);
-	imagecopyresampled($newimg, $img, 0, 0, 0, 0, $newwidth, $newheight, imagesx($img), imagesy($img));
 
 	drupal_add_http_header('Content-type', 'image/jpg; charset=binary', TRUE);
 	drupal_add_http_header('Content-Transfer-Encoding', 'binary', TRUE);
@@ -315,9 +310,8 @@ function student_picture($account) {
 	drupal_add_http_header("Pragma", "public", TRUE);
 	drupal_add_http_header("Cache-Control", "maxage=".$expires, TRUE);
 	drupal_add_http_header('Expires', gmdate('D, d M Y H:i:s', time()+$expires) . ' GMT', TRUE);
-	imagejpeg($newimg, NULL, 100);
+	imagejpeg($img, NULL, 100);
 	imagedestroy($img);
-	imagedestroy($newimg);
 }
 
 function student_user_account_form_validate($form, $form_state) {
@@ -397,14 +391,14 @@ function student_user_account_form_save($form, &$form_state) {
 	if($form_state['values']['photo']) {
 			$file=file_load($form_state['values']['photo']);
 			$image=image_load($file->uri);
-			image_save($image, $file->uri.'.jpg');
-			$fd=fopen($file->uri.'.jpg','rb');
-			$data='';
-			while (!feof($fd)) {
-				$data.=fread($fd, 1024);
-			}
-			fclose($fd);
-			file_unmanaged_delete($file->uri.'.jpg');
+			$image->info['extension']='jpeg';
+			if(defined('SAE_TMP_PATH'))
+				$newfile='saemc://'.$file->filename;
+			else
+				$newfile=$file->uri.'.jpg';
+			image_save($image, $newfile);
+			$data=file_get_contents($newfile);
+			file_unmanaged_delete($newfile);
 			db_update('students')->condition('uid',$user->uid)->fields(array(
 				'picture' => base64_encode($data),
 			))->execute();
