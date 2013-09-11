@@ -105,8 +105,8 @@ function cert_issue_menu() {
 		'title' => 'Revoke certificate',
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('cert_issue_revoke_cert_form', 3, 4),
-		'access callback' => 'user_access',
-		'access arguments'=> array('preload certificates'),
+		'access callback' => 'cert_issue_revoke_cert_form_access',
+		'access arguments'=> array(3, 4),
 	);
 	$items['certificate/exchangerolls'] = array(
 		'title' => 'Certificates Exchange Roll Management',
@@ -130,8 +130,8 @@ function cert_issue_menu() {
 		'title' => 'Reject Certificate Exchange Request', 
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('cert_issue_exchange_rolls_reject_form', 2, 4),
-		'access callback' => 'user_access',
-		'access arguments'=> array('admin certificates exchange rolls'),
+		'access callback' => 'cert_issue_exchange_rolls_reject_form_access',
+		'access arguments' => array(2, 4),
 	);
 	$items['user/certs'] = array(
 		'title' => 'My certificates',
@@ -1573,6 +1573,11 @@ function certissue_load($ciid) {
 		array(':ciid'=>$ciid))->fetchObject();
 }
 
+function cert_issue_revoke_cert_form_access($cert, $student) {
+	if(user_access('preload certificates') && $cert->claimedby==$student->uid) return TRUE;
+	else return FALSE;
+}
+
 function cert_issue_revoke_cert_form($form, &$form_state, $cert, $student) {
 	if($cert->claimedby!=$student->uid) return NULL;
 	$title=t('About to revoke certificate No.!certid', array('!certid'=>$cert->certid));
@@ -1625,8 +1630,12 @@ function cert_issue_revoke_cert_form_submit($form, &$form_state) {
 	$form_state['redirect']='certificate/massiveupload/query';
 }
 
+function cert_issue_exchange_rolls_reject_form_access($cer, $cert) {
+	if(user_access('admin certificates exchange rolls') && $cert->cerid==$cer->cerid && $cert->status == 1) return TRUE;
+	return FALSE;
+}
+
 function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert) {
-	if($cert->cerid!=$cer->cerid || $cert->status <>1) return NULL;
 	$student=student_load($cert->claimedby);
 	$form_state['storage']['uid']=$cert->claimedby;
 	$form_state['storage']['ciid']=$cert->ciid;
