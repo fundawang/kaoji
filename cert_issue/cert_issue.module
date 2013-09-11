@@ -1535,7 +1535,7 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 				array('html'=>TRUE, 'attributes'=>array('title'=>t('Click for details')))),
 			$r->idcard_number,
 			$certs_str,
-			$r->status==1?l(t('Reject'), sprintf('certificate/exchangerolls/%d/reject/%d', $r->cerid, $r->ciid)):_cert_issue_get_status_text($r->status),
+			$r->status==1?(_cert_issue_get_status_text($r->status).'<br/>'.l(t('Reject'), sprintf('certificate/exchangerolls/%d/reject/%d', $r->cerid, $r->ciid))):_cert_issue_get_status_text($r->status),
 		);
 		if($r->status)
 			$form_state['storage']['ciid'][]=$r->ciid;
