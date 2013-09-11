@@ -393,7 +393,7 @@ function student_user_account_form_save($form, &$form_state) {
 			$image=image_load($file->uri);
 			$image->info['extension']='jpeg';
 			if(defined('SAE_TMP_PATH'))
-				$newfile='saemc://'.$file->filename;
+				$newfile='saemc://'.$file->filename.'.jpg';
 			else
 				$newfile=$file->uri.'.jpg';
 			image_save($image, $newfile);
