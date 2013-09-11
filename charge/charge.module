@@ -265,7 +265,7 @@ function charge_user_access() {
 }
 
 function charge_form_alter(&$form, &$form_state, $form_id) {
-	if(isset($form_state['storage']['charge'])) {
+	if(isset($form_state['storage']['charge']) && !$form_state['storage']['charge']['admin']) {
 		$form['#submit'][]='charge_form_alter_submit';
 	}
 }
