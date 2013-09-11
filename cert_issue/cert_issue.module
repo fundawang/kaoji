@@ -125,6 +125,14 @@ function cert_issue_menu() {
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin certificates exchange rolls'),
 	);
+	$items['certificate/exchangerolls/%rollsview/reject/%certissue'] = array(
+		'type' => MENU_CALLBACK,
+		'title' => 'Reject Certificate Exchange Request', 
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('cert_issue_exchange_rolls_reject_form', 2, 4),
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates exchange rolls'),
+	);
 	$items['user/certs'] = array(
 		'title' => 'My certificates',
 		'menu_name' => 'user-menu',
@@ -1512,7 +1520,7 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 		foreach($cer->cid_orig as $cid) {
 			$cert=db_query('SELECT certid FROM {certificates_issues} WHERE claimedby=:uid AND status=0', array(':uid'=>$r->claimedby))
 				->fetchObject();
-			$certs[]=sprintf('%s: %s', $cer->cname_orig[$cid], empty($cert->certid)?t('None'):$cert->certid);
+			$certs[]=sprintf('%s: %s', $cer->cname_orig[$cid], empty($cert->certid)?('<span style="color:red">'.t('None').'</span>'):$cert->certid);
 		}
 		if(count($cer->cid_orig) > 1)
 			$certs_str='<ul><li>'.implode($certs,'</li><li>').'</li></ul>';
@@ -1527,7 +1535,7 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 				array('html'=>TRUE, 'attributes'=>array('title'=>t('Click for details')))),
 			$r->idcard_number,
 			$certs_str,
-			_cert_issue_get_status_text($r->status),
+			$r->status==1?l(t('Reject'), sprintf('certificate/exchangerolls/%d/reject/%d', $r->cerid, $r->ciid)):_cert_issue_get_status_text($r->status),
 		);
 		if($r->status)
 			$form_state['storage']['ciid'][]=$r->ciid;
@@ -1537,13 +1545,9 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 	);
 	if(!empty($rows)) {
 		if(!empty($form_state['storage']['ciid'])) {
-			$form['reject']=array(
-				'#markup' => t('If you want to reject certain application, please go to user\'s page.')
-			);
 			$form['confirm']=array(
 				'#type' => 'submit',
 				'#value' => t('Mark all applications in this page as approved'),
-				'#prefix' => t('Otherwise, you could')
 			);
 		}
 		$form['pager']=array('#markup'=>theme('pager'));
@@ -1619,6 +1623,51 @@ function cert_issue_revoke_cert_form_submit($form, &$form_state) {
 	if($r)
 		drupal_set_message(t('Certificate No.!no is revoked.', array('!no'=>$form_state['storage']['certid'])));
 	$form_state['redirect']='certificate/massiveupload/query';
+}
+
+function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert) {
+	if($cert->cerid!=$cer->cerid || $cert->status <>1) return NULL;
+	$student=student_load($cert->claimedby);
+	$form_state['storage']['ciid']=$cert->ciid;
+	$form_state['storage']['cerid']=$cer->cerid;
+	$form_state['storage']['name']=$student->name;
+	$form_state['storage']['cname']=$cert->cname;
+	$title=t('About to reject !name\'s !cname certificate exchange request', array('!name'=>$student->name, '!cname'=>$cert->cname));
+	$form['name']=array(
+		'#type' => 'item',
+		'#title' => t('Real Name'),
+		'#markup' => $cert->name,
+	);
+	$certs=array();
+	foreach($cer->cid_orig as $cid) {
+		$cert=db_query('SELECT certid FROM {certificates_issues} WHERE claimedby=:uid AND status=0', array(':uid'=>$cert->claimedby))
+			->fetchObject();
+		$certs[]=sprintf('%s: %s', $cer->cname_orig[$cid], empty($cert->certid)?('<span style="color:red">'.t('None').'</span>'):$cert->certid);
+	}
+	if(count($cer->cid_orig) > 1)
+		$certs_str='<ul><li>'.implode($certs,'</li><li>').'</li></ul>';
+	else
+		$certs_str=$certs[0];
+	$form['orig_cert']=array(
+		'#type' => 'item',
+		'#title' => t('Original certificate ID'),
+		'#markup' => $certs_str,
+	);
+	return confirm_form($form,
+		$title,
+		empty($_SERVER['HTTP_REFERER'])?('certificate/exchangerolls/'.$cerid):$_SERVER['HTTP_REFERER'],
+		t('Rejecting the request will not refund the fee the student already paid.').
+			t('So that if the student request another exchange within the same roll, he does not need to repay.'),
+		t('Reject')
+	);
+}
+
+function cert_issue_exchange_rolls_reject_form_submit($form, &$form_state) {
+	$r=db_delete('certificates_issues')->condition('ciid',$form_state['storage']['ciid'])
+		->execute();
+	if($r)
+		drupal_set_message(t('!name\'s !cname certificate exchange request is rejected.', array('!name'=>$form_state['storage']['name'], '!cname'=>$form_state['storage']['cname'])));
+	$form_state['redirect']='certificate/exchangerolls/'.$form_state['storage']['cerid'];
 }
 
 /**
