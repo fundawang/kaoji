@@ -1628,6 +1628,7 @@ function cert_issue_revoke_cert_form_submit($form, &$form_state) {
 function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert) {
 	if($cert->cerid!=$cer->cerid || $cert->status <>1) return NULL;
 	$student=student_load($cert->claimedby);
+	$form_state['storage']['uid']=$cert->claimedby;
 	$form_state['storage']['ciid']=$cert->ciid;
 	$form_state['storage']['cerid']=$cer->cerid;
 	$form_state['storage']['name']=$student->name;
@@ -1637,6 +1638,14 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 		'#type' => 'item',
 		'#title' => t('Real Name'),
 		'#markup' => $cert->name,
+		'#prefix' => sprintf('<img src="%s" height="80" align="left" style="margin-right: 20px; margin-bottom: 10px;"/>', $student->picture),
+		'#weight' => -1,
+	);
+	$form['gender']=array(
+		'#type' => 'item',
+		'#title' => t('Gender'),
+		'#markup' => $cert->gender==1?t('Male'):t('Female'),
+		'#weight' => 0,
 	);
 	$certs=array();
 	foreach($cer->cid_orig as $cid) {
@@ -1652,12 +1661,18 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 		'#type' => 'item',
 		'#title' => t('Original certificate ID'),
 		'#markup' => $certs_str,
+		'#weight' => 1,
+	);
+	$form['notice']=array(
+		'#markup' => t('Rejecting the request will not refund the fee the student already paid.').
+			t('So that if the student request another exchange within the same roll, he does not need to repay.'),
+		'#weight' => 99,
+
 	);
 	return confirm_form($form,
 		$title,
 		empty($_SERVER['HTTP_REFERER'])?('certificate/exchangerolls/'.$cerid):$_SERVER['HTTP_REFERER'],
-		t('Rejecting the request will not refund the fee the student already paid.').
-			t('So that if the student request another exchange within the same roll, he does not need to repay.'),
+		'',
 		t('Reject')
 	);
 }

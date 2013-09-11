@@ -130,6 +130,37 @@ function snailmail_form_cert_issue_user_exchange_form_submit($form, &$form_state
 	))->execute();
 }
 
+function snailmail_form_cert_issue_exchange_rolls_reject_form_alter(&$form, $form_state) {
+	$r=db_query('SELECT sd.* FROM {snailmail_addresses} sd INNER JOIN {snailmail_usage} su ON sd.smaid=su.smaid '.
+		'WHERE module=:module AND type=:type AND keyword=:keyword',
+		array(':module'=>'cert_issue', ':type'=>$form_state['storage']['uid'], ':keyword'=>$form_state['storage']['ciid'])
+		)->fetchObject();
+	$form['address']=array(
+		'#type' => 'item',
+		'#title' => t('Mail Address'),
+		'#markup' => $r->address,
+		'#weight' => 2,
+	);
+	$form['zipcode']=array(
+		'#type' => 'item',
+		'#title' => t('Zipcode'),
+		'#markup' => $r->zipcode,
+		'#weight' => 3,
+	);
+	$form['recipient']=array(
+		'#type' => 'item',
+		'#title' => t('Recipient'),
+		'#markup' => $r->recipient,
+		'#weight' => 4,
+	);
+	$form['phonenumber']=array(
+		'#type' => 'item',
+		'#title' => t('Phone number'),
+		'#markup' => $r->phonenumber,
+		'#weight' => 5,
+	);
+}
+
 function snailmail_form_alter(&$form, &$form_state, $form_id) {
 	//drupal_set_message($form_id); 
 }
