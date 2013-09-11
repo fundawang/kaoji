@@ -1507,7 +1507,7 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 		array('data'=>t('Real Name'), 'field'=>'claimedby'),
 		array('data'=>t('IDCard Number'), 'field'=>'ci.idcard_number'),
 		t('Original certificate ID'),
-		array('data'=>t('Status'), 'field'=>'ci.status', 'sort'=>'desc'),
+		array('data'=>t('Status / Operation'), 'field'=>'ci.status', 'sort'=>'desc'),
 	);
 	$query=db_select('certificates_issues','ci')->fields('ci')->condition('ci.cerid',$cer->cerid)
 		->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(10);
@@ -1679,7 +1679,7 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 	);
 	return confirm_form($form,
 		$title,
-		empty($_SERVER['HTTP_REFERER'])?('certificate/exchangerolls/'.$cerid):$_SERVER['HTTP_REFERER'],
+		empty($_SERVER['HTTP_REFERER'])?('certificate/exchangerolls/'.$cer->cerid):$_SERVER['HTTP_REFERER'],
 		'',
 		t('Reject')
 	);
