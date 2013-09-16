@@ -1017,16 +1017,18 @@ function charge_form_cert_issue_exchange_rolls_reject_form_alter(&$form, $form_s
 }
 
 function charge_form_cert_issue_exchange_rolls_view_form_alter(&$form, &$form_state) {
-	foreach($form_state['storage']['ciid'] as $key=>$ciid) {
-		$uid=db_query('SELECT claimedby FROM {certificates_issues} WHERE ciid=:ciid',array(':ciid'=>$ciid))->fetchField();
-		$amount=db_query(
-			'SELECT o.amount, SUM(op.amount) as opamount FROM {orders} o LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
-			'WHERE o.ordertitle=:ordertitle AND o.uid=:uid GROUP BY o.orderno',
-			array(':ordertitle'=>$form_state['storage']['charge']['ordertitle'], ':uid'=>$uid)
-		)->fetchObject();
-		if($amount->amount != $amount->opamount) {
-			unset($form_state['storage']['ciid'][$key]);
-			$form['notice']['#markup']='<div>'.t('Application with unpaid orders will not be approved.').'</div>';
+	if(!empty($form_state['storage']['ciid'])) {
+		foreach($form_state['storage']['ciid'] as $key=>$ciid) {
+			$uid=db_query('SELECT claimedby FROM {certificates_issues} WHERE ciid=:ciid',array(':ciid'=>$ciid))->fetchField();
+			$amount=db_query(
+				'SELECT o.amount, SUM(op.amount) as opamount FROM {orders} o LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
+				'WHERE o.ordertitle=:ordertitle AND o.uid=:uid GROUP BY o.orderno',
+				array(':ordertitle'=>$form_state['storage']['charge']['ordertitle'], ':uid'=>$uid)
+			)->fetchObject();
+			if($amount->amount != $amount->opamount) {
+				unset($form_state['storage']['ciid'][$key]);
+				$form['notice']['#markup']='<div>'.t('Application with unpaid orders will not be approved.').'</div>';
+			}
 		}
 	}
 }
