@@ -135,6 +135,7 @@ function snailmail_form_cert_issue_exchange_rolls_reject_form_alter(&$form, $for
 		'WHERE module=:module AND type=:type AND keyword=:keyword',
 		array(':module'=>'cert_issue', ':type'=>$form_state['storage']['uid'], ':keyword'=>$form_state['storage']['ciid'])
 		)->fetchObject();
+	if(!$r) return;
 	$form['address']=array(
 		'#type' => 'item',
 		'#title' => t('Mail Address'),

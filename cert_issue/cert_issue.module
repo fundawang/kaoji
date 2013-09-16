@@ -1314,7 +1314,6 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 	))->execute();
 	if($r) {
 		$form_state['values']['ciid']=$r;
-		$cer=cer_load($cer);
 		drupal_set_message(t('Certificate exchange applied.'));
 		watchdog('certificate',
 			'Applied exchange on certificate !cname.', array(
@@ -1555,6 +1554,12 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 	$form['total']=array(
 		'#markup' => t('There are !num students who had applied exchanging this certificate.', array('!num'=>$totalnum))
 	);
+	$form_state['storage']['charge']=array(
+		'module'=>'cert_issue',
+		'account'=>'certexchange',
+		'ordertitle'=>t('Apply @cname to exchange',array('@cname'=>$cer->cname)),
+		'admin'=>TRUE,
+	);
 	$header=array(
 		array('data'=>t('Real Name'), 'field'=>'claimedby'),
 		array('data'=>t('IDCard Number'), 'field'=>'ci.idcard_number'),
@@ -1599,6 +1604,7 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 		if(!empty($form_state['storage']['ciid'])) {
 			$form['confirm']=array(
 				'#type' => 'submit',
+				'#weight' => 99,
 				'#value' => t('Mark all applications in this page as approved'),
 			);
 		}
@@ -1613,13 +1619,15 @@ function cert_issue_exchange_rolls_view_form_submit($form, &$form_state) {
 		$i+=db_update('certificates_issues')->condition('ciid',$ciid)->fields(array(
 			'status' => 0
 		))->execute();
-	drupal_set_message(t('Approved !num students applications.', array('!num'=>$i)));
-	watchdog('user',
-		'Approved !num students applications.', array(
-			'!num'=>$i,
-			),
-		WATCHDOG_INFO
-	);
+	if($i) {
+		drupal_set_message(t('Approved !num students applications.', array('!num'=>$i)));
+		watchdog('user',
+			'Approved !num students applications.', array(
+				'!num'=>$i,
+				),
+			WATCHDOG_INFO
+		);
+	}
 }
 
 function certissue_load($ciid) {
