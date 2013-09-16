@@ -496,6 +496,13 @@ function charge_gatewayreponse($params) {
 			'transno' => $params[$gateway]['transactionno'],
 			'amount' => $params[$gateway]['amount']
 		))->execute();
+		watchdog('charge',
+			'Order No.!orderno paid successful with !amount.', array(
+				'!orderno'=>$orderno,
+				'!amount'=>$params[$gateway]['amount']
+				),
+			WATCHDOG_INFO
+		);
 		$amount=db_query(
 			'SELECT o.amount, SUM(op.amount) as opamount FROM {orders} o LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
 			'WHERE o.orderno=:orderno GROUP BY o.orderno', array(':orderno'=>$orderno))->fetchObject();
@@ -503,7 +510,6 @@ function charge_gatewayreponse($params) {
 			db_update('orders')->condition('orderno', $orderno)->fields(array('status'=>100))->execute();
 		if(!empty($params[$gateway]['echostr'])) {
 			echo $params[$gateway]['echostr'];
-			exit;
 		}
 	}
 	if($params[$gateway]['is_backend']) exit;
@@ -512,14 +518,6 @@ function charge_gatewayreponse($params) {
 		'!ordertitle'=>$order->ordertitle,
 		'!amount'=>$params[$gateway]['amount']
 	)));
-	watchdog('charge',
-		'Order No.!orderno !ordertitle paid successful with !amount.', array(
-			'!orderno'=>$orderno,
-			'!ordertitle'=>$order->ordertitle,
-			'!amount'=>$params[$gateway]['amount']
-			),
-		WATCHDOG_INFO
-	);
 	drupal_goto(sprintf('%s/user/payment', base_path()));
 }
 
