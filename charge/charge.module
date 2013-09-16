@@ -858,7 +858,7 @@ function charge_cron() {
 					'@gateway' => $r->gateway
 				),
 				WATCHDOG_ERROR,
-				l(t('View'), 'charge/log/'.$r->orderno)
+				l(t('View'), 'charge/log/')
 			);
 			continue;
 		}
@@ -875,11 +875,6 @@ function charge_cron() {
 					'timestamp'=>time(),
 					'amount'=>$t[$r->gateway]['amount'],
 			))->execute();
-			db_update('orders')->condition('orderno',$r->orderno)->fields(array(
-				'gatewaytransactionno' => $t[$r->gateway]['transactionno'],
-				'gatewaysettledate' => isset($t[$r->gateway]['settledate'])?$t[$r->gateway]['settledate']:date('md'),
-				'status' => 100,
-			))->execute();
 			$amount=db_query(
 				'SELECT o.amount, SUM(op.amount) as opamount FROM {orders} o LEFT JOIN {orders_process} op ON o.orderno=op.orderno '.
 				'WHERE o.orderno=:orderno GROUP BY o.orderno', array(':orderno'=>$r->orderno))->fetchObject();
@@ -893,7 +888,7 @@ function charge_cron() {
 					'@gateway' => $r->gateway
 				),
 				WATCHDOG_INFO,
-				l(t('View'), 'charge/log/'.$r->orderno)
+				l(t('View'), 'charge/log/')
 			);
 		} else {
 			$status=$r->status;
@@ -910,7 +905,7 @@ function charge_cron() {
 					'@gateway' => $r->gateway
 				),
 				WATCHDOG_WARNING,
-				l(t('View'), 'charge/log/'.$r->orderno)
+				l(t('View'), 'charge/log/')
 			);
 		}
 	}
