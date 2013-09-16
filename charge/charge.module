@@ -1026,7 +1026,7 @@ function charge_form_cert_issue_exchange_rolls_view_form_alter(&$form, &$form_st
 		)->fetchObject();
 		if($amount->amount != $amount->opamount) {
 			unset($form_state['storage']['ciid'][$key]);
-			$form['notice']['#markup']='<div>'.t('Unpaid orders will not be approved.').'</div>';
+			$form['notice']['#markup']='<div>'.t('Application with unpaid orders will not be approved.').'</div>';
 		}
 	}
 }
