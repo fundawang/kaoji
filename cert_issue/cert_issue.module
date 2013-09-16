@@ -1557,7 +1557,7 @@ function cert_issue_exchange_rolls_view_form($form, &$form_state, $cer) {
 	$form_state['storage']['charge']=array(
 		'module'=>'cert_issue',
 		'account'=>'certexchange',
-		'ordertitle'=>t('Apply @cname to exchange',array('@cname'=>$cer->cname)),
+		'ordertitle'=>cert_issue_user_exchange_form_title($cer->cname),
 		'admin'=>TRUE,
 	);
 	$header=array(
@@ -1721,7 +1721,7 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 	$form_state['storage']['charge']=array(
 		'module'=>'cert_issue',
 		'account'=>'certexchange',
-		'ordertitle'=>t('Apply @cname to exchange',array('@cname'=>$cer->cname)),
+		'ordertitle'=>cert_issue_user_exchange_form_title($cer->cname),
 		'admin'=>TRUE,
 	);
 	$title=t('About to reject !name\'s !cname certificate exchange request', array('!name'=>$student->name, '!cname'=>$cert->cname));
