@@ -1678,6 +1678,10 @@ function cert_issue_revoke_cert_form($form, &$form_state, $cert, $student) {
 				'!birth'=>$student->date_of_birth)
 			),
 	);
+	$form['redirect']=array(
+		'#type' => 'hidden',
+		'#value'=> empty($_SERVER['HTTP_REFERER'])?'certificate/massiveupload/query':$_SERVER['HTTP_REFERER'],
+	);
 	return confirm_form($form,
 		$title,
 		empty($_SERVER['HTTP_REFERER'])?'certificate/massiveupload/query':$_SERVER['HTTP_REFERER'],
@@ -1703,7 +1707,7 @@ function cert_issue_revoke_cert_form_submit($form, &$form_state) {
 			WATCHDOG_INFO
 		);
 	}
-	$form_state['redirect']='certificate/massiveupload/query';
+	$form_state['redirect']=$_POST['redirect'];
 }
 
 function cert_issue_exchange_rolls_reject_form_access($cer, $cert) {
@@ -1754,6 +1758,10 @@ function cert_issue_exchange_rolls_reject_form($form, &$form_state, $cer, $cert)
 		'#markup' => $certs_str,
 		'#weight' => 1,
 	);
+	$form['redirect']=array(
+		'#type' => 'hidden',
+		'#value'=> empty($_SERVER['HTTP_REFERER'])?('certificate/exchangerolls/'.$cer->cerid):$_SERVER['HTTP_REFERER'],
+	);
 	return confirm_form($form,
 		$title,
 		empty($_SERVER['HTTP_REFERER'])?('certificate/exchangerolls/'.$cer->cerid):$_SERVER['HTTP_REFERER'],
@@ -1776,7 +1784,7 @@ function cert_issue_exchange_rolls_reject_form_submit($form, &$form_state) {
 			WATCHDOG_INFO
 		);
 	}
-	$form_state['redirect']='certificate/exchangerolls/'.$form_state['storage']['cerid'];
+	$form_state['redirect']=$_POST['redirect'];;
 }
 
 /**
