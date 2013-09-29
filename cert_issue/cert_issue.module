@@ -137,7 +137,7 @@ function cert_issue_menu() {
 		'title' => 'My certificates',
 		'menu_name' => 'user-menu',
 		'plid' => '0',
-		'weight' => -10,
+		'weight' => 0,
 		'page callback' => 'cert_issue_user_certs_page',
 		'access callback' => 'cert_issue_user_certs_page_access',
 	);
@@ -145,7 +145,7 @@ function cert_issue_menu() {
 		'title' => 'Claim already issued certificates',
 		'menu_name' => 'user-menu',
 		'plid' => '0',
-		'weight' => -9,
+		'weight' => 1,
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('cert_issue_user_claim_form'),
 		'access callback' => 'cert_issue_user_claim_access',
@@ -154,7 +154,7 @@ function cert_issue_menu() {
 		'title' => 'Exchange certificates',
 		'menu_name' => 'user-menu',
 		'plid' => '0',
-		'weight' => -8,
+		'weight' => 2,
 		'page callback' => 'cert_issue_user_exchange_page',
 		'access callback' => 'cert_issue_user_certs_page_access',
 	);
