@@ -19,7 +19,7 @@ function student_schema() {
 			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
 			'exname' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
 			'foreign_name' => array('type' => 'varchar', 'length' => '100', 'not null' => FALSE),
-			'picture' => array('type' => 'text', 'size' => 'big', 'not null' => FALSE),
+			'picture' => array('type' => 'int', 'length' => 11, 'not null'=>FALSE),
 		),
 		'primary key' => array('uid'),
 		'unique keys' => array(
@@ -30,6 +30,24 @@ function student_schema() {
 			'exname' => array('exname'),
 			'gender' => array('gender'),
 			'idcard_type' => array('idcard_type')
+		),
+		'foreign keys' => array(
+			'uid' => array(
+				'table' => 'users',
+				'columns' => array('uid' => 'uid'),
+			),
+		),
+	);
+	$schema['photos'] = array(
+		'description' => t('This table stores the photos uploaded by users.'),
+		'fields' => array(
+			'photoid' => array('type' => 'serial', 'not null' => TRUE),
+			'uid' => array('type' => 'int', 'not null' => TRUE, 'default' => 0),
+			'photo' => array('type' => 'text', 'size' => 'big', 'not null' => FALSE),
+		),
+		'primary key' => array('photoid'),
+		'indexes' => array(
+			'uid' => array('uid'),
 		),
 		'foreign keys' => array(
 			'uid' => array(
@@ -89,4 +107,25 @@ function student_update_7002() {
 		)
 	);
 	db_add_field('students', 'exname', $exname, $index);
+}
+
+/**
+ * split out photo table to reduce duplicate data
+ */
+function student_update_7003() {
+	$schemas=drupal_get_schema_unprocessed('student','photos');
+	db_create_table('photos', $schemas);
+	$dbo=db_query('SELECT uid, picture FROM {students}');
+	foreach($dbo as $r) {
+		if(!empty($r->picture)) {
+			$photoid=db_insert('photos')->fields(array(
+				'uid' => $r->uid,
+				'photo' => $r->picture
+			))->execute();
+		} else $photoid=NULL;
+		db_update('students')->condition('uid',$r->uid)->fields(array(
+			'picture'=>$photoid
+		))->execute();
+	}
+	db_change_field('students', 'picture', 'picture', array('type' => 'int', 'length' => 11, 'not null'=>FALSE));
 }

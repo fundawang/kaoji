@@ -101,7 +101,7 @@ function student_menu() {
 	$items['user/%user/%/picture.jpg'] = array(
 		'title' => 'Fetch picture of student',
 		'page callback' => 'student_picture',
-		'page arguments' => array(1),
+		'page arguments' => array(1,2),
 		'type' => MENU_CALLBACK,
 		'access callback' => 'student_picture_perm',
 		'access arguments'=> array(1,2),
@@ -109,17 +109,9 @@ function student_menu() {
 	return $items;
 }
 
-function student_picture_perm($user,$md5=NULL) {
+function student_picture_perm($user,$rev=NULL) {
 	if(!user_view_access($user)) return FALSE;
-	$query=db_query('SELECT picture FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid));
-	$img_tmp=$query->fetchField();
-	if(substr(md5($img_tmp), 0,4)!=$md5) return FALSE;
-	if($img_tmp)
-		$test=imagecreatefromstring(base64_decode($img_tmp));
-	else $test=false;
-	if($test)
-		imagedestroy($test);
-	return $test != FALSE;
+	return db_query('SELECT EXISTS(SELECT * FROM {students} WHERE uid=:uid AND picture=:rev)',array(':uid'=>$user->uid, ':rev'=>$rev));
 }
 
 function student_form_user_register_form_alter(&$form, &$form_state) {
@@ -295,8 +287,8 @@ function student_user_account_form(&$form, $form_state) {
 	$form['#submit'][]='student_user_account_form_save';
 }
 
-function student_picture($account) {
-	$query=db_query('SELECT picture FROM {students} where uid=:uid',array(':uid'=>$account->uid));
+function student_picture($account, $rev) {
+	$query=db_query('SELECT photo FROM {photos} where uid=:uid AND photoid=:rev',array(':uid'=>$account->uid, ':rev'=>$rev));
 	$img_tmp=$query->fetchField();
 	if(!$img_tmp) return NULL;
 	$img=imagecreatefromstring(base64_decode($img_tmp));
@@ -399,8 +391,12 @@ function student_user_account_form_save($form, &$form_state) {
 			image_save($image, $newfile);
 			$data=file_get_contents($newfile);
 			file_unmanaged_delete($newfile);
-			db_update('students')->condition('uid',$user->uid)->fields(array(
-				'picture' => base64_encode($data),
+			$photoid=db_insert('photos')->fields(array(
+				'uid' => $user->uid,
+				'photo' => base64_encode($data),
+			))->execute();
+			db_update('students')->condition('uid', $user->uid)->fields(array(
+				'picture' => $photoid
 			))->execute();
 	}
 	$form_state['redirect']=sprintf('user/%d', $user->uid);
@@ -588,11 +584,13 @@ function student_load($user) {
 	if($user && $user->uid) {
 		$obj=db_query('SELECT * FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid))->fetchObject();
 		if(!$obj) return FALSE;
-		$obj->rawpicture=$obj->picture;
+		if(!empty($obj->picture)) 
+			$obj->rawpicture=db_query('SELECT photo FROM {photos} WHERE uid=:uid AND photoid=:rev', array(':uid'=>$user->uid, ':rev'=>$obj->picture))->fetchField();
+		else $obj->rawpicture=NULL;
 		if(preg_match('/(?i)msie [1-8]/',$_SERVER['HTTP_USER_AGENT'])) {
-			$url=sprintf('%suser/%s/%s/picture.jpg', base_path(), $obj->uid, substr(md5($obj->picture),0,4));
+			$url=sprintf('%suser/%s/%s/picture.jpg', base_path(), $obj->uid, $obj->picture,0,4);
 			$obj->picture=$url;
-		} else $obj->picture='data:image/jpeg;base64,'.$obj->picture;
+		} else $obj->picture='data:image/jpeg;base64,'.$obj->rawpicture;
 		return $obj;
 	}
 	else return FALSE;
