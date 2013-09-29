@@ -755,7 +755,7 @@ function cert_issue_user_claim_access($user=NULL) {
 	if(isset($user->uid) && $user->uid && user_access('claim certificates')) {
 		$student=student_load($user);
 		if(!$student) return FALSE;
-		else return TRUE;
+		else return !user_access('preload certificates', $user);
 	} else return FALSE;
 }
 
