@@ -584,6 +584,7 @@ function student_load($user) {
 	if($user && $user->uid) {
 		$obj=db_query('SELECT * FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid))->fetchObject();
 		if(!$obj) return FALSE;
+		$obj->photoid=$obj->picture;
 		if(!empty($obj->picture)) 
 			$obj->rawpicture=db_query('SELECT photo FROM {photos} WHERE uid=:uid AND photoid=:rev', array(':uid'=>$user->uid, ':rev'=>$obj->picture))->fetchField();
 		else $obj->rawpicture=NULL;

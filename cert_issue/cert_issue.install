@@ -22,7 +22,7 @@ function cert_issue_schema() {
 			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
 			'date_of_birth' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE, 'default' => ''),
 			'gender' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
-			'picture' => array('type' => 'text', 'size' => 'big', 'not null' => FALSE),
+			'picture' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
 			'issuedate' => array('type' => 'varchar', 'length' => '8', 'not null' => FALSE, 'default' => ''),
 			'claimedby' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
 			'status' => array('type' => 'int', 'size' => 'tiny', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0),
@@ -146,4 +146,30 @@ function cert_issue_update_7008() {
 		)
 	);
 	db_add_field('certificates_issues', 'cerid', $cerid, $index);
+}
+
+/**
+ * sync with student picture split
+ */
+function cert_issue_update_7009() {
+	$dbo=db_query("SELECT ciid, claimedby, picture FROM {certificates_issues} WHERE picture <> '' AND claimedby <> 0");
+	foreach($dbo as $r) {
+		$photoid=db_query('SELECT photoid FROM {photos} WHERE uid=:uid AND photo=:photo',
+			array(':uid'=>$r->claimedby, ':photo'=>$r->picture))->fetchField();
+		if(empty($photoid))
+			$photoid=db_insert('photos')->fields(array(
+				'uid'=>$r->claimedby,
+				'photo'=>$r->picture
+			))->execute();
+		db_update('certificates_issues')->condition('ciid',$r->ciid)->fields(array('picture'=>$photoid))->execute();
+	}
+	db_change_field('certificates_issues', 'picture', 'picture', array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0));
+}
+
+function cert_issue_update_dependencies() {
+	// We need to ensure photos table is created correctly and students table are alter correct before we alter our data.
+	$dependencies['cert_issue'][7009] = array(
+		'student' => 7003,
+	);
+	return $dependencies;
 }

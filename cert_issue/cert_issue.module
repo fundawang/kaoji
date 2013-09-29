@@ -1308,7 +1308,7 @@ function cert_issue_user_exchange_form_submit($form, &$form_state) {
 		'idcard_number' => $student->idcard_number,
 		'date_of_birth' => $student->date_of_birth,
 		'gender' => $student->gender,
-		'picture' => $student->rawpicture,
+		'picture' => $student->photoid,
 		'claimedby' => $student->uid,
 		'status' => 1,
 	))->execute();
