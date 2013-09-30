@@ -318,6 +318,91 @@ function theme_certificate_specification_form($variables) {
 }
 
 function certificate_operations_form($form, $form_state) {
+	if(empty($form)) $form=array();
+	if(!isset($form_state['storage']['operation'])) $form_state['storage']['operation']='0';
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline')
+	);
+	$rdbo=db_query('SELECT * FROM {certificates} ORDER by cid');
+	$certs=array();
+	foreach($rdbo as $r) {
+		$certs[$r->cid]=array('series'=>$r->series, 'name'=>$r->name);
+	}
+	$rdbo=db_query('SELECT DISTINCT o.name AS oname, c.cid, c.name AS cname, c.series AS series '.
+		'FROM {certificates_operations} co INNER JOIN {operations} o ON co.oid=o.oid '.
+		'INNER JOIN {certificates} c ON co.cid=c.cid ORDER BY co.oid DESC, co.cid');
+	$operations=array();
+	if($form_state['storage']['operation']=='0')
+		$header=array(
+			array('data'=>t('Running Operations'), 'field'=>'co.oid', 'sort'=>'desc'),
+			t('Valid certificates'),
+		);
+	else $header=array(t('Valid certificates'));
+	$query=db_select('certificates_operations','co');
+	$query->innerJoin('operations','o','co.oid=o.oid');
+	$query->addExpression('DISTINCT(co.oid)','oid');
+	$query->addExpression('o.name','oname');
+	if($form_state['storage']['operation']!='0')
+		$query->condition('o.oid',$form_state['storage']['operation']);
+	else 
+		$query->extend('PagerDefault')->limit(10)->extend('TableSort')->orderByHeader($header);
+	$rdbo=$query->execute();
+	$rows=array();
+	foreach($rdbo as $r) {
+		$dbo=db_query('SELECT DISTINCT c.name AS cname, c.series AS series '.
+			'FROM {certificates_operations} co INNER JOIN {operations} o ON co.oid=o.oid '.
+			'INNER JOIN {certificates} c ON co.cid=c.cid WHERE co.oid=:oid ORDER BY co.oid DESC, co.cid',
+			array(':oid'=>$r->oid));
+		$certs=array();
+		foreach($dbo as $db) {
+			$certs[$db->series][]=$db->cname;
+		}
+		foreach($certs as $series=>$cnames) {
+			$certificates=sprintf('%s<ul><li>%s</li></ul>', $series, implode($cnames,'</li><li>'));
+		}
+		if($form_state['storage']['operation']=='0')
+			$rows[]=array(
+				$r->oname,
+				$certificates
+			);
+		else {
+			if(count($certs[$series])>1)
+				$rows[]=array(sprintf('<ul><li>%s</li></ul>', implode($certs[$series],'</li><li>')));
+			else
+				$rows[]=array($certs[$series][0]);
+		}
+	}
+	$query=db_query('SELECT o.oid, o.name as oname FROM {operations} o WHERE EXISTS(SELECT * FROM {certificates_operations} co WHERE co.oid=o.oid)');
+	$options=array(
+		'0' => t('All operations'),
+	);
+	foreach($query as $r) {
+		$options+=array(
+			$r->oid => $r->oname
+		);
+	}
+	$form['operation']=array(
+		'#type' => 'select',
+		'#title' => t('Select Operation'),
+		'#options' => $options,
+		'#prefix' => '<div class="inline-element-div">',
+		'#default_value' => $form_state['storage']['operation'],
+	);
+	$form['refresh']=array(
+		'#type' => 'submit',
+		'#value' => t('Refresh'),
+		'#suffix' => '</div>',
+		'#submit' => array('certificate_operations_form_refresh_submit')
+	);
+	$form['cert_operations']=array(
+		'#markup' => theme('table',array('header'=>$header, 'rows'=>$rows)).theme('pager'),
+	);
+	return $form;
+}
+
+function certificate_operations_form_refresh_submit($form, &$form_state) {
+	$form_state['storage']['operation']=$form_state['values']['operation'];
+	$form_state['rebuild']=TRUE;
 }
 
 function certificate_operations_load($cid, $oid) {
