@@ -59,6 +59,7 @@ function certificate_menu() {
 		'title' => 'Certificates Management',
 		'description' => "Manage the certificates",
 		'page callback' => 'certificate_blocklist',
+		'weight' => 7,
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin certificates'),
 		'expanded' => TRUE,
