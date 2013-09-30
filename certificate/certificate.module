@@ -554,6 +554,8 @@ function certificate_operations_form($form, $form_state) {
 		$form['newop']['create']=array(
 			'#type' => 'submit',
 			'#value' => t('Create new operation'),
+			'#submit' => array('certificate_operations_form_create_submit'),
+			'#limit_validation_errors'=>array(array('year'), array('month'), array('cert')),
 		);
 	} else {
 		$query=db_query(
@@ -639,6 +641,34 @@ function certificate_operations_form_addcert_submit($form, &$form_state) {
 		))->execute();
 	if($i==MergeQuery::STATUS_INSERT) 
 		drupal_set_message(t('Certificate added.'));
+	$form_state['rebuild']=TRUE;
+}
+
+function certificate_operations_form_create_submit($form, &$form_state) {
+	$oid=$form_state['values']['year'].$form_state['values']['month'];
+	if($form_state['values']['month']=='02')
+		$oname=t('!year winter',array('!year'=>$form_state['values']['year']));
+	elseif ($form_state['values']['month']=='08')
+		$oname=t('!year summer',array('!year'=>$form_state['values']['year']));
+	else
+		$oname=t('!year !month',array('!year'=>$form_state['values']['year'], '!month'=>(int)$form_state['values']['month']));
+	db_merge('operations')->key(array('oid'=>$oid))->insertFields(array(
+		'oid' => $oid,
+		'year' => $form_state['values']['year'],
+		'name' => $oname
+	))->execute();
+	$i=db_merge('certificates_operations')
+		->key(array('oid'=>$oid, 'cid'=>$form_state['values']['cert']))
+		->insertFields(array(
+			'oid' => $oid,
+			'cid' => $form_state['values']['cert'],
+			'visible' => 0,
+			'status' => 0,
+		))->execute();
+	if($i==MergeQuery::STATUS_INSERT) {
+		drupal_set_message(t('Certificate added into !oname',array('!oname'=>$oname)));
+		$form_state['storage']['operation']=$oid;
+	}
 	$form_state['rebuild']=TRUE;
 }
 
