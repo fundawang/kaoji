@@ -327,7 +327,7 @@ function certificate_operations_form($form, $form_state) {
 	$form['#attached']['css']=array(
 		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline')
 	);
-	$query=db_query('SELECT o.oid, o.name as oname FROM {operations} o WHERE EXISTS(SELECT * FROM {certificates_operations} co WHERE co.oid=o.oid)');
+	$query=db_query('SELECT o.oid, o.name as oname FROM {operations} o WHERE EXISTS(SELECT * FROM {certificates_operations} co WHERE co.oid=o.oid) ORDER BY o.oid DESC');
 	$options=array(
 		'0' => t('All operations'),
 	);
