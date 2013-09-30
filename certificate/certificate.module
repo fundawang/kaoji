@@ -23,6 +23,10 @@ function certificate_help($path, $arg) {
 		case 'certificate/preload':
 			$output = t('In this page, you could preload certificates already issued, for students to claim.');
 			break;
+		case 'certificate/operations':
+			$output = t('There are two methods adding operations: copying existing operation or creating from scratch.');
+			$output .= t('You may also adding certificates to operation one by one.');
+			break;
 	}
 	if (isset($output))
 		return $output;
@@ -366,7 +370,7 @@ function certificate_operations_form($form, $form_state) {
 	if($form_state['storage']['operation']!='0')
 		$query->condition('o.oid',$form_state['storage']['operation']);
 	else 
-		$query=$query->extend('PagerDefault')->limit(10)->extend('TableSort')->orderByHeader($header);
+		$query=$query->extend('PagerDefault')->limit(5)->extend('TableSort')->orderByHeader($header);
 	$rdbo=$query->execute();
 	$rows=array();
 	foreach($rdbo as $r) {
@@ -414,23 +418,12 @@ function certificate_operations_form($form, $form_state) {
 			'#value' => $form_state['storage']['operation']
 		);
 	}
-	if(date('m')>'06') {
-		$options=array(
-			sprintf("%4d%2d",(int)date('Y')+1,'02') => t('!year winter', array('!year'=>(int)date('Y')+1)),
-			sprintf("%4d%2d",(int)date('Y')+1,'08') => t('!year summer', array('!year'=>(int)date('Y')+1)),
-		);
-	} else {
-		$options=array(
-			sprintf("%4d%2d",(int)date('Y'),'08') => t('!year summer', array('!year'=>(int)date('Y'))),
-			sprintf("%4d%2d",(int)date('Y')+1,'02') => t('!year winter', array('!year'=>(int)date('Y')+1)),
-		);
-	}
 	if(!empty($rows)) {
-		$options+=array('0000'=>t('New date'));
 		$form['copytext']=array(
 			'#type' => 'item',
-			'#prefix' => '<div class="inline-element-div">',
-			'#markup' => t('Copy selected operation into'),
+			'#prefix' => '<hr/><div class="inline-element-div">',
+			'#weight' => 10,
+			'#title' => $form_state['storage']['operation']=='0'?t('Copy selected operation into'):t('Copy this operation into'),
 			'#states' => array(
 				'visible' => array(
 					':input[name="cert_operations"]' => array('!value' => false),
@@ -439,6 +432,7 @@ function certificate_operations_form($form, $form_state) {
 		);
 		$form['copyoperationselectyear']=array(
 			'#type' => 'select',
+			'#weight' => 11,
 			'#title' => t('Year select'),
 			'#title_display' => 'invisible',
 			'#options' => array(
@@ -468,6 +462,7 @@ function certificate_operations_form($form, $form_state) {
 		);
 		$form['copyoperationselectmonth']=array(
 			'#type' => 'select',
+			'#weight' => 12,
 			'#title' => t('Month select'),
 			'#title_display' => 'invisible',
 			'#options' => $options,
@@ -480,6 +475,7 @@ function certificate_operations_form($form, $form_state) {
 		);
 		$form['copyexecute']=array(
 			'#type' => 'submit',
+			'#weight' => 13,
 			'#value' => t('Copy and Generate new operation'),
 			'#limit_validation_errors' => array(array('copyoperationselectyear'), array('copyoperationselectmonth'), array('cert_operations')),
 			'#submit' => array('certificate_operations_form_copy_submit'),
@@ -491,6 +487,101 @@ function certificate_operations_form($form, $form_state) {
 				),
 			),
 		);
+	}
+	if($form_state['storage']['operation']=='0') {
+		$form['newop']=array(
+			'#type' => 'fieldset',
+			'#weight' => 14,
+			'#title' => t('Create new operation from scratch'),
+			'#collapsible' => TRUE,
+			'#collapsed' => TRUE,
+			'#states' => array(
+				'invisible' => array(
+					':input[name="cert_operations"]' => array('!value' => false),
+				),
+			),
+		);
+		$form['newop']['dateselecttext']=array(
+			'#type' => 'item',
+			'#required' => TRUE,
+			'#title' => t('Create a new operation on'),
+			'#prefix' => '<div class="inline-element-div">',
+		);
+		$form['newop']['year']=array(
+			'#type' => 'select',
+			'#title' => t('New operation on year'),
+			'#title_display' => 'invisible',
+			'#options' => array(
+				date('Y') => date('Y').t('Year'),
+				date('Y')+1 => (date('Y')+1).t('Year')
+			),
+			'#required' => TRUE,
+		);
+		$options=array(
+			'02' => t('Feb (winter)'),
+			'08' => t('Aug (summer)'),
+			'01' => t('Jan'),
+			'03' => t('Mar'),
+			'04' => t('Apr'),
+			'05' => t('May'),
+			'06' => t('Jun'),
+			'07' => t('Jul'),
+			'09' => t('Sep'),
+			'10' => t('Oct'),
+			'11' => t('Nov'),
+			'12' => t('Dec'),
+		);
+		$form['newop']['month']=array(
+			'#type' => 'select',
+			'#title' => t('New operation on month'),
+			'#title_display' => 'invisible',
+			'#options' => $options,
+			'#required' => TRUE,
+			'#suffix' => '</div><div class="inline-element-div">',
+		);
+		$options=array();
+		$rdbo=db_query('SELECT * FROM {certificates} ORDER by cid');
+		foreach($rdbo as $r) {
+			$options[$r->cid] = sprintf('%s - %s', $r->series, $r->name);
+		}
+		$form['newop']['cert']=array(
+			'#type' => 'select',
+			'#title' => t('And set certificate'),
+			'#required' => TRUE,
+			'#options'=>$options,
+			'#suffix' => '</div>',
+		);
+		$form['newop']['create']=array(
+			'#type' => 'submit',
+			'#value' => t('Create new operation'),
+		);
+	} else {
+		$query=db_query(
+			'SELECT * FROM {certificates} c WHERE NOT EXISTS(SELECT * FROM {certificates_operations} co WHERE co.cid=c.cid AND co.oid=:oid)',
+			array(':oid'=>$form_state['storage']['operation']));
+		$options=array();
+		foreach($query as $r) {
+			$options[$r->cid] = sprintf('%s - %s', $r->series, $r->name);
+		}
+		if(!empty($options)) {
+			$form['certselect']=array(
+				'#type'=>'select',
+				'#weight' => 8,
+				'#options'=>$options,
+				'#required'=>TRUE,
+				'#title'=>t('Certificate to add'),
+				'#title_display'=>'invisible',
+				'#prefix' => '<hr/><div class="inline-element-div">',
+			);
+			$form['addcert']=array(
+				'#weight' => 9,
+				'#type'=>'submit',
+				'#value'=>t('Add selected certificate into this operation'),
+				'#submit' => array('certificate_operations_form_addcert_submit'),
+				'#limit_validation_errors'=>array(array('certselect')),
+				'#suffix' => '</div>',
+			);
+		}
 	}
 	return $form;
 }
@@ -535,6 +626,20 @@ function certificate_operations_form_copy_submit(&$form, &$form_state) {
 		$form_state['storage']['operation']=$oid;
 		$form_state['rebuild']=TRUE;
 	}
+}
+
+function certificate_operations_form_addcert_submit($form, &$form_state) {
+	$i=db_merge('certificates_operations')
+		->key(array('oid'=>$form_state['storage']['operation'], 'cid'=>$form_state['values']['certselect']))
+		->insertFields(array(
+			'oid' => $form_state['storage']['operation'],
+			'cid' => $form_state['values']['certselect'],
+			'visible' => 0,
+			'status' => 0,
+		))->execute();
+	if($i==MergeQuery::STATUS_INSERT) 
+		drupal_set_message(t('Certificate added.'));
+	$form_state['rebuild']=TRUE;
 }
 
 function certificate_operations_load($cid, $oid) {
