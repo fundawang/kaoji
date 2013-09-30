@@ -995,8 +995,7 @@ function theme_cert_issue_exchange_rolls_form($variables) {
 	$form=$variables['form'];
 	$output ='';
 	$output .= drupal_render($form['addrolls']);
-	$output .= drupal_render($form['rolls']['title']);
-	unset($form['rolls']['title']);
+	
 	$header=array(
 		array('data' => t('Series'), 'field'=> 'series'),
 		array('data' => t('Specification'), 'field'=> 'name'),
@@ -1016,8 +1015,10 @@ function theme_cert_issue_exchange_rolls_form($variables) {
 			drupal_render($form['rolls']['submit'.$cerid]),
 		);
 	}
-	if(!empty($rows))
+	if(!empty($rows)) {
+		$output .= drupal_render($form['rolls']['title']);
 		$output.=theme('table',array('header'=>$header,'rows'=>$rows,'empty'=>t('There is no defined rolls.')));
+	} else unset($form['rolls']['title']);
 	unset($form['rolls']);
 	$output.=drupal_render_children($form);
 	$output .= theme('pager');
