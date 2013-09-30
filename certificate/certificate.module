@@ -352,9 +352,6 @@ function certificate_operations_form($form, $form_state) {
 	foreach($rdbo as $r) {
 		$certs[$r->cid]=array('series'=>$r->series, 'name'=>$r->name);
 	}
-	$rdbo=db_query('SELECT DISTINCT o.name AS oname, c.cid, c.name AS cname, c.series AS series '.
-		'FROM {certificates_operations} co INNER JOIN {operations} o ON co.oid=o.oid '.
-		'INNER JOIN {certificates} c ON co.cid=c.cid ORDER BY co.oid DESC, co.cid');
 	$operations=array();
 	if($form_state['storage']['operation']=='0')
 		$header=array(
@@ -407,6 +404,7 @@ function certificate_operations_form($form, $form_state) {
 		);
 	}
 	else  {
+		drupal_set_title(sprintf('%s - %s', t('Operations Management'), $r->oname));
 		$form['cert_operations_text']=array(
 			'#type' =>'markup',
 			'#markup' => theme('table', array('header' => $header, 'rows'=>$rows))
