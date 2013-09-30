@@ -378,8 +378,9 @@ function certificate_operations_form($form, $form_state) {
 		foreach($dbo as $db) {
 			$certs[$db->series][]=$db->cname;
 		}
+		$certificates='';
 		foreach($certs as $series=>$cnames) {
-			$certificates=sprintf('%s<ul><li>%s</li></ul>', $series, implode($cnames,'</li><li>'));
+			$certificates.=sprintf('%s<ul><li>%s</li></ul>', $series, implode($cnames,'</li><li>'));
 		}
 		if($form_state['storage']['operation']=='0')
 			$rows[$r->oid]=array(
@@ -387,10 +388,9 @@ function certificate_operations_form($form, $form_state) {
 				'cnames'=>$certificates
 			);
 		else {
-			if(count($certs[$series])>1)
-				$rows[$r->oid]=array('cnames'=>sprintf('<ul><li>%s</li></ul>', implode($certs[$series],'</li><li>')));
-			else
-				$rows[$r->oid]=array('cnames'=>$certs[$series][0]);
+			foreach($certs as $series=>$cnames)
+				foreach($cnames as $cname)
+				$rows[]=array(sprintf('%s - %s', $series, $cname));
 		}
 	}
 	if($form_state['storage']['operation']=='0') {
