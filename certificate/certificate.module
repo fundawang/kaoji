@@ -338,6 +338,7 @@ function certificate_operations_form($form, $form_state) {
 		'#options' => $options,
 		'#prefix' => '<div class="inline-element-div">',
 		'#default_value' => $form_state['storage']['operation'],
+		'#value' => $form_state['storage']['operation'],
 	);
 	$form['refresh']=array(
 		'#type' => 'submit',
@@ -406,9 +407,13 @@ function certificate_operations_form($form, $form_state) {
 		);
 	}
 	else  {
-		$form['cert_operations']=array(
+		$form['cert_operations_text']=array(
 			'#type' =>'markup',
 			'#markup' => theme('table', array('header' => $header, 'rows'=>$rows))
+		);
+		$form['cert_operations']=array(
+			'#type' =>'hidden',
+			'#value' => $form_state['storage']['operation']
 		);
 	}
 	if(date('m')>'06') {
@@ -424,14 +429,30 @@ function certificate_operations_form($form, $form_state) {
 	}
 	if(!empty($rows)) {
 		$options+=array('0000'=>t('New date'));
+		$form['copytext']=array(
+			'#type' => 'item',
+			'#prefix' => '<div class="inline-element-div">',
+			'#markup' => t('Copy selected operation into'),
+			'#states' => array(
+				'visible' => array(
+					':input[name="cert_operations"]' => array('!value' => false),
+				),
+			),
+		);
 		$form['copyoperationselectyear']=array(
 			'#type' => 'select',
-			'#prefix' => '<div class="inline-element-div">'.t('Copy selected operation into'),
+			'#title' => t('Year select'),
+			'#title_display' => 'invisible',
 			'#options' => array(
 				date('Y') => date('Y').t('Year'),
 				date('Y')+1 => (date('Y')+1).t('Year')
 			),
 			'#required' => TRUE,
+			'#states' => array(
+				'visible' => array(
+					':input[name="cert_operations"]' => array('!value' => false),
+				),
+			),
 		);
 		$options=array(
 			'02' => t('Feb (winter)'),
@@ -453,11 +474,24 @@ function certificate_operations_form($form, $form_state) {
 			'#title_display' => 'invisible',
 			'#options' => $options,
 			'#required' => TRUE,
+			'#states' => array(
+				'visible' => array(
+					':input[name="cert_operations"]' => array('!value' => false),
+				),
+			),
 		);
 		$form['copyexecute']=array(
 			'#type' => 'submit',
 			'#value' => t('Copy and Generate new operation'),
+			'#limit_validation_errors' => array(array('copyoperationselectyear'), array('copyoperationselectmonth'), array('cert_operations')),
+			'#submit' => array('certificate_operations_form_copy_submit'),
+			'#validate' => array('certificate_operations_form_copy_validate'),
 			'#suffix' => '</div>',
+			'#states' => array(
+				'visible' => array(
+					':input[name="cert_operations"]' => array('!value' => false),
+				),
+			),
 		);
 	}
 	return $form;
@@ -466,6 +500,43 @@ function certificate_operations_form($form, $form_state) {
 function certificate_operations_form_refresh_submit($form, &$form_state) {
 	$form_state['storage']['operation']=$_POST['operation'];
 	$form_state['rebuild']=TRUE;
+}
+
+function certificate_operations_form_copy_validate($form, $form_state) {
+	if(empty($form_state['values']['cert_operations']))
+		form_set_error('cert_operations', t('!name field is required.', array('!name'=>t('Base operation'))));
+}
+
+function certificate_operations_form_copy_submit(&$form, &$form_state) {
+	$i=0;
+	$oid=$form_state['values']['copyoperationselectyear'].$form_state['values']['copyoperationselectmonth'];
+	if($form_state['values']['copyoperationselectmonth']=='02')
+		$oname=t('!year winter',array('!year'=>$form_state['values']['copyoperationselectyear']));
+	elseif ($form_state['values']['copyoperationselectmonth']=='08')
+		$oname=t('!year summer',array('!year'=>$form_state['values']['copyoperationselectyear']));
+	else
+		$oname=t('!year !month',array('!year'=>$form_state['values']['copyoperationselectyear'], '!month'=>(int)$form_state['values']['copyoperationselectmonth']));
+	db_merge('operations')->key(array('oid'=>$oid))->insertFields(array(
+		'oid' => $oid,
+		'year' => $form_state['values']['copyoperationselectyear'],
+		'name' => $oname
+	))->execute();
+
+	$dbo=db_query('SELECT cid FROM {certificates_operations} WHERE oid=:oid', array(':oid'=>$form_state['values']['cert_operations']));
+	foreach($dbo as $r) {
+		$result=db_merge('certificates_operations')->key(array('oid'=>$oid, 'cid'=>$r->cid))->insertFields(array(
+			'oid' => $oid,
+			'cid' => $r->cid,
+			'visible' => 0,
+			'status' => 0,
+		))->execute();
+		if($result==MergeQuery::STATUS_INSERT) $i++;
+	}
+	if($i>0) {
+		drupal_set_message(t('Copied !num certificates into !oname', array('!num'=>$i, '!oname'=>$oname)));
+		$form_state['storage']['operation']=$oid;
+		$form_state['rebuild']=TRUE;
+	}
 }
 
 function certificate_operations_load($cid, $oid) {
