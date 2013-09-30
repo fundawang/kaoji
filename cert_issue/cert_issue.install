@@ -163,6 +163,9 @@ function cert_issue_update_7009() {
 			))->execute();
 		db_update('certificates_issues')->condition('ciid',$r->ciid)->fields(array('picture'=>$photoid))->execute();
 	}
+	db_update('certificates_issues')->isNull('picture')->fields(array(
+		'picture'=>0
+	))->execute();
 	db_change_field('certificates_issues', 'picture', 'picture', array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE, 'default' => 0));
 }
 
