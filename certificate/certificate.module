@@ -422,42 +422,44 @@ function certificate_operations_form($form, $form_state) {
 			sprintf("%4d%2d",(int)date('Y')+1,'02') => t('!year winter', array('!year'=>(int)date('Y')+1)),
 		);
 	}
-	$options+=array('0000'=>t('New date'));
-	$form['copyoperationselectyear']=array(
-		'#type' => 'select',
-		'#prefix' => '<div class="inline-element-div">'.t('Copy selected operation into'),
-		'#options' => array(
-			date('Y') => date('Y').t('Year'),
-			date('Y')+1 => (date('Y')+1).t('Year')
-		),
-		'#required' => TRUE,
-	);
-	$options=array(
-		'02' => t('Feb (winter)'),
-		'08' => t('Aug (summer)'),
-		'01' => t('Jan'),
-		'03' => t('Mar'),
-		'04' => t('Apr'),
-		'05' => t('May'),
-		'06' => t('Jun'),
-		'07' => t('Jul'),
-		'09' => t('Sep'),
-		'10' => t('Oct'),
-		'11' => t('Nov'),
-		'12' => t('Dec'),
-	);
-	$form['copyoperationselectmonth']=array(
-		'#type' => 'select',
-		'#title' => t('Month select'),
-		'#title_display' => 'invisible',
-		'#options' => $options,
-		'#required' => TRUE,
-	);
-	$form['copyexecute']=array(
-		'#type' => 'submit',
-		'#value' => t('Copy and Generate new operation'),
-		'#suffix' => '</div>',
-	);
+	if(!empty($rows)) {
+		$options+=array('0000'=>t('New date'));
+		$form['copyoperationselectyear']=array(
+			'#type' => 'select',
+			'#prefix' => '<div class="inline-element-div">'.t('Copy selected operation into'),
+			'#options' => array(
+				date('Y') => date('Y').t('Year'),
+				date('Y')+1 => (date('Y')+1).t('Year')
+			),
+			'#required' => TRUE,
+		);
+		$options=array(
+			'02' => t('Feb (winter)'),
+			'08' => t('Aug (summer)'),
+			'01' => t('Jan'),
+			'03' => t('Mar'),
+			'04' => t('Apr'),
+			'05' => t('May'),
+			'06' => t('Jun'),
+			'07' => t('Jul'),
+			'09' => t('Sep'),
+			'10' => t('Oct'),
+			'11' => t('Nov'),
+			'12' => t('Dec'),
+		);
+		$form['copyoperationselectmonth']=array(
+			'#type' => 'select',
+			'#title' => t('Month select'),
+			'#title_display' => 'invisible',
+			'#options' => $options,
+			'#required' => TRUE,
+		);
+		$form['copyexecute']=array(
+			'#type' => 'submit',
+			'#value' => t('Copy and Generate new operation'),
+			'#suffix' => '</div>',
+		);
+	}
 	return $form;
 }
 
