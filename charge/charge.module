@@ -80,6 +80,8 @@ function charge_menu() {
 	$items['charge'] = array(
 		'title' => 'Online charging',
 		'description' => "Features regarding online charging.",
+		'menu_name' => 'user-menu',
+		'plid' => '0',
 		'weight' => '9',
 		'page callback' => 'charge_admin_page',
 		'access callback' => 'user_access',

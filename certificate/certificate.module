@@ -60,6 +60,8 @@ function certificate_theme() {
 function certificate_menu() {
 	$items=array();
 	$items['certificate']=array(
+		'menu_name' => 'user-menu',
+		'plid' => '0',
 		'title' => 'Certificates Management',
 		'description' => "Manage the certificates",
 		'page callback' => 'certificate_blocklist',
