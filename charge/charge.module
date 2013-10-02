@@ -254,7 +254,7 @@ function charge_fee_submit($form, $form_state) {
 }
 
 function charge_form_cert_issue_exchange_rolls_form_alter(&$form, &$form_state) {
-	$form['addrolls']['#description']=t('Current charge amount: &yen;!num.', array(
+	$form['addrolls']['#description']=t('Current charge amount: &#165;!num.', array(
 		'!num' => number_format(db_query('SELECT amount FROM {charging_accounts} WHERE module=\'cert_issue\' AND account=\'certexchange\'')->fetchField()))
 	);
 	if(user_access('administer charging'))
@@ -313,7 +313,7 @@ function charge_user_orders($form, $form_state) {
 		);
 		$form['order_'.$r->orderno]['amountdue']=array(
 			'#type' => 'item',
-			'#markup' => sprintf('&yen;%d', $r->amount),
+			'#markup' => sprintf('&#165;%d', $r->amount),
 		);
 		switch ($r->status) {
 			case 100:
@@ -357,7 +357,7 @@ function charge_user_orders($form, $form_state) {
 		$form['order_'.$r->orderno]['totalamount']=array(
 			'#type' => 'markup',
 			'#markup' => empty($totaltext)?'':
-				($totalamount==$r->amount?sprintf('&yen;%d', $r->amount):sprintf('&yen;%s (%s)',$totalamount,$totaltext)),
+				($totalamount==$r->amount?sprintf('&#165;%d', $r->amount):sprintf('&#165;%s (%s)',$totalamount,$totaltext)),
 		);
 	}
 	$form['#description']=json_encode($orders);
@@ -641,7 +641,7 @@ function charge_log_form($form, $form_state) {
 			'#markup' => l($r->orderno,sprintf('charge/log/%s',$r->orderno)),
 		);
 		$form['orderlist'][$r->orderno]['ordertitle']=array(
-			'#markup' => sprintf('%s<br/>&yen; %d', $r->ordertitle, $r->amount),
+			'#markup' => sprintf('%s<br/>&#165; %d', $r->ordertitle, $r->amount),
 		);
 		$form['orderlist'][$r->orderno]['status']=array(
 			'#markup' => _charge_status_text($r->status),
@@ -944,12 +944,12 @@ function charge_log_form_detail($form, $form_state, $order) {
 	$form['amount']=array(
 		'#type' => 'item',
 		'#title' => t('Order amount'),
-		'#markup' => sprintf('&yen; %d', $order->amount),
+		'#markup' => sprintf('&#165; %d', $order->amount),
 	);
 	$form['transamount']=array(
 		'#type' => 'item',
 		'#title' => t('Total settled amount'),
-		'#markup' => sprintf('&yen; %d', $order->transaction_amount),
+		'#markup' => sprintf('&#165; %d', $order->transaction_amount),
 	);
 	$ops=db_query('SELECT * FROM {orders_process} WHERE orderno=:orderno ORDER BY timestamp',array(':orderno'=>$order->orderno));
 	$header=array(
@@ -963,10 +963,10 @@ function charge_log_form_detail($form, $form_state, $order) {
 				$summary=t('Transaction submitted to !gateway',array('!gateway'=>$op->gateway));
 			else if($op->amount>0)
 				$summary=t('Charged !amount via !gateway, with transaction number !transno',
-					array('!amount'=>sprintf('&yen; %d', $op->amount), '!gateway'=>$op->gateway, '!transno'=>$op->transno));
+					array('!amount'=>sprintf('&#165; %d', $op->amount), '!gateway'=>$op->gateway, '!transno'=>$op->transno));
 			else
 				$summary=t('Refund !amount via !gateway with transaction number !transno',
-					array('!amount'=>sprintf('&yen; %d', abs($op->amount)), '!gateway'=>$op->gateway, '!transno'=>$op->transno));
+					array('!amount'=>sprintf('&#165; %d', abs($op->amount)), '!gateway'=>$op->gateway, '!transno'=>$op->transno));
 			$rows[]=array(
 				format_date($op->timestamp, 'custom', 'Y-m-d H:i'),
 				$summary,
@@ -999,13 +999,13 @@ function charge_form_cert_issue_exchange_rolls_reject_form_alter(&$form, $form_s
 		$form['amount']=array(
 			'#type' => 'item',
 			'#title' => t('Order amount'),
-			'#markup' => sprintf('&yen; %d', $amount->amount),
+			'#markup' => sprintf('&#165; %d', $amount->amount),
 			'#weight' => 90,
 		);
 		$form['transamount']=array(
 			'#type' => 'item',
 			'#title' => t('Total settled amount'),
-			'#markup' => sprintf('&yen; %d', $amount->opamount),
+			'#markup' => sprintf('&#165; %d', $amount->opamount),
 			'#weight' => 91,
 		);
 		$form['notice']=array(
