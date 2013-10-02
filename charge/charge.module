@@ -548,6 +548,7 @@ function charge_log_form($form, $form_state) {
 	$form['user']['username']=array(
 		'#type' => 'textfield',
 		'#title' => t('Real Name'),
+		'#description'=>t('You can also search by pinyin name, by inputing "zhang" with case insensitive.'),
 		'#maxlength' => 10,
 		'#size' => 30,
 		'#default_value' => isset($form_state['storage']['username'])?$form_state['storage']['username']:'',
