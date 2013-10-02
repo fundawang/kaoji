@@ -1788,6 +1788,17 @@ function cert_issue_exchange_rolls_reject_form_submit($form, &$form_state) {
 	$form_state['redirect']=$_POST['redirect'];;
 }
 
+function cert_issue_form_certificate_specification_form_alter(&$form, &$form_state) {
+	foreach(element_children($form['existing']) as $key) {
+		if(preg_match('/^delete/',$key)) {
+			$cid=substr($key,6);
+			$a=db_query('SELECT EXISTS(SELECT * FROM {certificates_operations} WHERE cid=:cid)', array(':cid'=>$cid))->fetchField();
+			if($a)
+				$form['existing'][$key]=array('#markup'=>'');
+		}
+	}
+}
+
 /**
  * Implementation of hook_charge_accounts().
  */
