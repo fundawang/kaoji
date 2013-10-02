@@ -1,0 +1,271 @@
+<?php
+
+/*
+ * This file is licensed under GPLv2+.
+ */
+
+/**
+ * @file
+ * Provides management of exam goings.
+ */
+ 
+/**
+ * Implementation of hook_help().
+ */
+function exam_help($path, $arg) {
+	switch ($path) {
+		case 'exam':
+			$output = t('You may administrate various basic information of certificates via following features.');
+			break;
+		case 'exam/specification':
+			$output = t('In this page, you could modify or add new certificate specification.');
+			break;
+		case 'exam/preload':
+			$output = t('In this page, you could preload certificates already issued, for students to claim.');
+			break;
+		case 'exam/operations':
+			$output = t('There are two methods adding operations: copying existing operation or creating from scratch.');
+			$output .= t('You may also adding certificates to operation one by one.');
+			break;
+	}
+	if (isset($output))
+		return $output;
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function exam_menu() {
+	$items=array();
+	$items['exam']=array(
+		'menu_name' => 'user-menu',
+		'plid' => '0',
+		'title' => 'Exam Management',
+		'description' => "Manage the exam",
+		'page callback' => 'exam_blocklist',
+		'weight' => 9,
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates'),
+		'expanded' => TRUE,
+	);
+	$items['exam/scores']=array(
+		'title' => 'Result and Scores',
+		'weight' => 10,
+		'description' => "Manage the results and scores of exams",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_scores_form'),
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates'),
+	);
+	$items['exam/scores/upload']=array(
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'title' => 'Massive upload the scores',
+		'weight' => 1,
+		'description' => "Massive upload the scores",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_scores_form'),
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates'),
+	);
+	$items['exam/scores/query']=array(
+		'type' => MENU_LOCAL_TASK,
+		'title' => 'Query uploaded the scores',
+		'weight' => 2,
+		'description' => "Query uploaded the scores",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_scores_query_form'),
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin certificates'),
+	);
+	$items['user/scores'] = array(
+		'title' => 'My scores',
+		'menu_name' => 'user-menu',
+		'plid' => '0',
+		'weight' => 8,
+		'page callback' => 'exam_user_scores',
+		'access callback' => 'exam_user_scores_access',
+	);
+	return $items;
+}
+
+/**
+ * Provide a single block from the administration menu as a page.
+ * This function is often a destination for these blocks.
+ * For example, 'admin/content/types' needs to have a destination to be valid
+ * in the Drupal menu system, but too much information there might be
+ * hidden, so we supply the contents of the block.
+ *
+ * @return
+ *   The output HTML.
+ */
+function exam_blocklist() {
+	$item = menu_get_item();
+	$content = system_admin_menu_block($item);
+
+	return theme('admin_block_content', array('content' => $content));
+}
+
+function exam_scores_form($form, $form_state) {
+	if(!isset($form_state['storage']['step'])) {
+		unset($form_state['storage']);
+		$form_state['storage']['step']=1;
+	}
+
+	if($form_state['storage']['step']==1)
+		$form=exam_scores_form_step1($form, $form_state);
+	else if($form_state['storage']['step']==2)
+		$form=exam_scores_form_step2($form, $form_state);
+	return $form;
+}
+
+function exam_scores_form_step1($form, $form_state) {
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div div, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline'),
+		'div.ajax-progress-throbber {display: none; }'=>array('type'=>'inline'),
+	);
+	$rdbo=db_query('SELECT * FROM {operations} o WHERE '.
+		'EXISTS(SELECT * FROM {certificates_operations} co WHERE co.oid=o.oid) '.
+		'AND year=:year AND oid<:month ORDER by oid DESC',
+		array(':year' => date('Y'), ':month' => date('Ym'))
+	);
+	$options=array();
+	foreach($rdbo as $r) {
+		if(checkdate(substr($r->oid, 4, 2),1,$r->year))
+			$options[$r->oid]=$r->name;
+	}
+	$operation = isset($form_state['values']['operation']) ? $form_state['values']['operation'] : (isset($form_state['storage']['operation'])?$form_state['storage']['operation']:key($options));
+	$form['operation']=array(
+		'#type' => 'select',
+		'#title' => t('Select Operation and certificate'),
+		'#prefix' => '<div class="inline-element-div">',
+		'#required' => TRUE,
+		'#default_value' => $operation,
+		'#options' => $options,
+		'#ajax' => array(
+			'callback' => '_exam_score_form_step1_operation_select_callback',
+			'wrapper' => 'scores-certificate-selectbox',
+		),
+	);
+	$form['certificate']=array(
+		'#type' => 'select',
+		'#title' => t('Certificate'),
+		'#title_display' => 'invisible',
+		'#prefix' => '<div id="scores-certificate-selectbox" class="inline-element-div">',
+		'#suffix' => '</div></div>',
+		'#options' => _exam_score_form_step1_certificate_select_options($operation),
+		'#default_value' => isset($form_state['values']['certificate']) ? $form_state['values']['certificate'] : (isset($form_state['storage']['certificate'])?$form_state['storage']['certificate']:''),
+		'#required' => TRUE,
+	);
+	$form['massivefile']=array(
+		'#type' => 'managed_file',
+		'#title' => t('Data file'),
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['fid'])?$form_state['storage']['fid']:0,
+		'#description' => t('Only .xls and .xlsx spreadsheets are supported.'),
+		'#upload_validators' => array('file_validate_extensions' => array('xls xlsx'), '_exam_is_file_spreadsheet'=>array()),
+	);
+	$form['submit']=array(
+		'#type' => 'submit',
+		'#value' => t('Next Step >'),
+	);
+	$form['#submit'][]='exam_scores_form_step1_submit';
+	return $form;
+}
+
+function _exam_score_form_step1_operation_select_callback($form, $form_state) {
+	return $form['certificate'];
+}
+
+function _exam_score_form_step1_certificate_select_options($operation) {
+	$query=db_query('SELECT c.cid, c.series, c.name FROM {certificates} c WHERE '.
+		'EXISTS(SELECT * FROM {certificates_operations} co WHERE c.cid=co.cid AND co.oid=:oid)',
+		array(':oid'=>$operation)
+	);
+	$options=array();
+	foreach($query as $r)
+		$options[$r->cid]=sprintf('%s - %s', $r->series, $r->name);
+	return $options;
+}
+
+function _exam_is_file_spreadsheet($file) {
+	if(!preg_match('/\.xlsx{0,1}$/i', $file->filename)) return array();
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	$result=0;
+	switch($format=PHPExcel_IOFactory::identify($file->uri)) {
+		case 'Excel5':
+		case 'Excel2007':
+		try {
+			$objReader = PHPExcel_IOFactory::createReader($format);
+			$objReader->setReadDataOnly(true);
+			$objPHPExcel = $objReader->load($file->uri);
+			$result=$objPHPExcel->getSheetCount()>0;
+			$objPHPExcel->disconnectWorksheets();
+			unset($objPHPExcel);
+			unset($objReader);
+		} catch(Exception $exp) {
+			return array($exp->getMessage());
+		}
+	}
+	if($result) return array();
+	else return array(t('It is not a valid spreadsheet file.'));
+}
+
+function exam_scores_form_step1_submit($form, &$form_state) {
+	$form_state['storage']['coid']=db_query('SELECT coid FROM {certificates_operations} WHERE cid=:cid and oid=:oid',
+		array(':oid'=>$form_state['values']['operation'], ':cid'=>$form_state['values']['certificate'])
+	)->fetchField();
+	$form_state['storage']['operation']=$form_state['values']['operation'];
+	$form_state['storage']['certificate']=$form_state['values']['certificate'];
+	$form_state['storage']['fid']=$form_state['values']['massivefile'];
+	$form_state['storage']['step']=2;
+	$form_state['rebuild']=TRUE;
+}
+
+function exam_scores_form_step2($form, $form_state) {
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline;}'.
+		'body.sidebar-first div #post-content { width: 960px; }'.
+		'div#sidebar { display: none; }' => array('type'=>'inline')
+	);
+	$r=db_query('SELECT o.name AS oname, c.series, c.name as cname FROM {operations} o '.
+		'INNER JOIN {certificates_operations} co ON o.oid=co.oid '.
+		'INNER JOIN {certificates} c ON c.cid=co.cid '.
+		'WHERE coid=:coid',
+		array(':coid'=>$form_state['storage']['coid'])
+	)->fetchObject();
+	$form['co']=array(
+		'#type' => 'item',
+		'#markup' => sprintf('%s %s', $r->oname, $r->cname),
+	);
+	$form['previous']=array(
+		'#type' => 'submit',
+		'#value' => t('< Previous Step'),
+		'#submit' => array('exam_scores_form_step2_previous_submit'),
+		'#limit_validation_errors' => array(),
+	);
+	$form['submit']=array(
+		'#type' => 'submit',
+		'#value' => t('Upload data file & save'),
+	);
+	return $form;
+}
+
+function exam_scores_form_step2_previous_submit($form, &$form_state) {
+	$form_state['rebuild']=TRUE;
+	$form_state['storage']['step']=1;
+}
+
+function exam_scores_query_form($form, $form_state) {
+	return array();
+}
+
+function exam_user_scores() {
+	return '';
+}
+
+function exam_user_scores_access() {
+	$r=student_load($GLOBALS['user']);
+	return !empty($r);
+}
+
+?>

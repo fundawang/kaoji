@@ -1,0 +1,8 @@
+name = Exam Management and Sign Up
+description = Provides management of exam goings
+package = Kaoji
+core = 7.x
+version = "7.x-0.1"
+
+dependencies[] = student
+dependencies[] = certificate
