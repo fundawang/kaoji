@@ -218,6 +218,12 @@ function certificate_specification_form($form, $form_state) {
 		'#name' => 'save',
 		'#value' => t('Save'),
 	);
+	if(isset($form_state['storage']['cid']))
+		$form['cancel']=array(
+			'#type' => 'submit',
+			'#name' => 'cancel',
+			'#value' => t('Cancel'),
+		);
 
 	$form['existingnotice']=array(
 		'#markup' => '<div style="margin-top: 20px;"><strong>'.t('Existing specifications').'</strong></div>',
@@ -258,6 +264,7 @@ function certificate_specification_form_submit($form, $form_state) {
 		))->execute();
 		drupal_set_message(t('Specification added.'));
 	} else {
+		if($form_state['triggering_element']['#name']=='cancel') return;
 		db_update('certificates')->fields(array(
 			'series' => $form_state['values']['series_input'],
 			'name' => $form_state['values']['name'],
@@ -286,6 +293,7 @@ function theme_certificate_specification_form($variables) {
 	$output.=drupal_render($form['end']);
 	$output.=drupal_render($form['name']);
 	$output.=drupal_render($form['save']);
+	if(isset($form['cancel'])) $output.=drupal_render($form['cancel']);
 	$output.=drupal_render($form['existingnotice']);
 	$rows=array();
 	foreach($form['existing'] as $key=>$val) {
