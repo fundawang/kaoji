@@ -96,8 +96,7 @@ function cert_issue_menu() {
 		'weight' => 2,
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('cert_issue_massiveupload_query_form'),
-		'access callback' => 'user_access',
-		'access arguments'=> array('preload certificates'),
+		'access callback' => 'cert_issue_massiveupload_query_form_access',
 	);
 
 	$items['certificate/massiveupload/revoke/%certissue/%student'] = array(
@@ -1445,6 +1444,11 @@ function cert_issue_user_view($user, $view_mode, $langcode) {
 			'#markup'=>theme('table',array('header'=>$header, 'rows'=>$rows))
 		);
 	}
+}
+
+function cert_issue_massiveupload_query_form_access() {
+	if(!user_access('preload certificates')) return FALSE;
+	return db_query('SELECT EXISTS(SELECT * FROM {certificates_issues})')->fetchField();
 }
 
 function cert_issue_massiveupload_query_form($form, $form_state) {
