@@ -8,6 +8,12 @@
  * @file
  * Provides management of exam goings.
  */
+
+define('exam_signup_status_UNKNOW', 0);
+define('exam_signup_status_WAIT_APPROVED', 1);
+define('exam_signup_status_APPROVED', 2);
+define('exam_signup_status_FINISHED', 3);
+
  
 /**
  * Implementation of hook_help().
@@ -398,12 +404,6 @@ function exam_scores_form_step2_validate($form, $form_state) {
 	$max_rows=$objWorksheet->getHighestRow();
 	$results=array();
 	while($row <= $max_rows) {
-		watchdog('exam',
-			'!row are being proceeded.', array(
-				'!row'=>$row,
-				),
-			WATCHDOG_INFO
-		);
 		$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
 		if(empty($idcardnumber)) {
 			form_set_error('idcardnumber', t('The value for idcardnumber at !cell is empty.',
@@ -519,4 +519,32 @@ function exam_user_scores_access() {
 	return !empty($r);
 }
 
+function exam_user_login($edit, $account) {
+	$s=student_load($account);
+	if(empty($s)) return;
+	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)',
+		array(':idcardnumber'=>$s->idcard_number, ':name'=>$s->name, ':exname'=>$s->exname)
+	);
+	$c=0;
+	foreach($query as $r) {
+		$i=db_insert('signup')->fields(array(
+			'uid' => $s->uid,
+			'coid' => $r->coid,
+			'score' => $r->score,
+			'result' => $r->result,
+			'status' => exam_signup_status_FINISHED
+		))->execute();
+		if($i) {
+			db_delete('scores_temp')->condition('stid',$r->stid)->execute();
+			$c++;
+		}
+	}
+	if($c)
+		watchdog('exam',
+			'!user claimed !num exam scores automatically.', array(
+				'!user'=>$s->name,
+				),
+			WATCHDOG_INFO
+		);
+}
 ?>
