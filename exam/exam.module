@@ -190,6 +190,11 @@ function _exam_score_form_step1_certificate_select_options($operation) {
 
 function _exam_is_file_spreadsheet($file) {
 	if(!preg_match('/\.xlsx{0,1}$/i', $file->filename)) return array();
+	if($file->filesize > 1024*100)
+		return array(
+			t('The file is %filesize exceeding the maximum file size of %maxsize.', array('%filesize' => format_size($file->filesize), '%maxsize' => format_size(1024*100))).
+			t('Please consider splice the file into multiple pieces.')
+		);
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
 	$result=0;
 	switch($format=PHPExcel_IOFactory::identify($file->uri)) {
@@ -204,6 +209,9 @@ function _exam_is_file_spreadsheet($file) {
 			unset($objPHPExcel);
 			unset($objReader);
 		} catch(Exception $exp) {
+			$objPHPExcel->disconnectWorksheets();
+			unset($objPHPExcel);
+			unset($objReader);
 			return array($exp->getMessage());
 		}
 	}
@@ -454,7 +462,6 @@ function exam_scores_form_step2_validate($form, $form_state) {
 }
 
 function exam_scores_form_step2_submit($form, &$form_state) {
-	var_dump($form_state['values']); exit;
 	$file=file_load($form_state['storage']['fid']);
 	$uri=drupal_realpath($file->uri);
 	if(interface_exists('SaeInterface')) {
