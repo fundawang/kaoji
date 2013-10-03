@@ -1039,7 +1039,7 @@ function charge_user_delete($user) {
 	if($query->fetchField())
 		throw new Exception(t("Cannot delete user !user, as there are orders related to him.", array('!user'=>$user->name)));
 	else {
-		$query=db_query('SELECT orderno FROM {orders} WHERE uid=:uid AND status=0)', array(':uid'=>$user->uid));
+		$query=db_query('SELECT orderno FROM {orders} WHERE uid=:uid AND status=0', array(':uid'=>$user->uid));
 		foreach($query as $r) {
 			db_delete('orders_process')->condition('orderno',$r->orderno)->execute();
 			db_delete('orders')->condition('orderno',$r->orderno)->execute();
