@@ -526,6 +526,11 @@ function exam_user_scores_access() {
 	return !empty($r);
 }
 
+function exam_user_update($edit, $account, $category) {
+	if($category=='account')
+		exam_user_login($edit, $account);
+}
+
 function exam_user_login($edit, $account) {
 	$s=student_load($account);
 	if(empty($s)) return;
