@@ -73,5 +73,5 @@ function exam_schema() {
  * add unqiue index uid_coid
  */
 function exam_update_7000() {
-	db_add_unique_key('certificates_issues', 'uid_coid', array('uid','coid'));
+	db_add_unique_key('signup', 'uid_coid', array('uid','coid'));
 }
