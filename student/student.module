@@ -365,7 +365,7 @@ function student_user_account_form_validate($form, $form_state) {
 function student_user_account_form_save($form, &$form_state) {
 	$user=$form_state['user'];
 	db_merge('students')
-		->key(array('uid' => $user->uid, 'idcard_number' => strtoupper(trim($form_state['values']['idnumber']))))
+		->key(array('uid' => $user->uid))
 		->fields(array(
 			'uid' => $user->uid,
 			'idcard_type' => $form_state['values']['idcard_type'],
