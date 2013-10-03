@@ -547,4 +547,11 @@ function exam_user_login($edit, $account) {
 			WATCHDOG_INFO
 		);
 }
+
+function exam_user_delete($user) {
+	$query=db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE uid=:uid)', array(':uid'=>$user->uid));
+	if($query->fetchField())
+		throw new Exception(t("Cannot delete user !user, as there are signup information related to him.", array('!user'=>$user->name)));
+}
+
 ?>

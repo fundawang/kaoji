@@ -1807,4 +1807,11 @@ function cert_issue_charge_accounts() {
 		'certexchange' => 'Cert Exchange',
 	);
 }
+
+function cert_issue_user_delete($user) {
+	$query=db_query('SELECT EXISTS(SELECT * FROM {certificates_issues} WHERE claimedby=:uid)', array(':uid'=>$user->uid));
+	if($query->fetchField())
+		throw new Exception(t("Cannot delete user !user, as there are certificates claimed by him.", array('!user'=>$user->name)));
+}
+
 ?>
