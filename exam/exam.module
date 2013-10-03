@@ -160,10 +160,11 @@ function exam_scores_form_step1($form, $form_state) {
 		'#type' => 'managed_file',
 		'#title' => t('Data file'),
 		'#required' => TRUE,
-		'#default_value' => isset($form_state['storage']['fid'])?$form_state['storage']['fid']:0,
+		'#default_value' => isset($form_state['storage']['fid'])?$form_state['storage']['fid']:21,
 		'#description' => t('Only .xls and .xlsx spreadsheets are supported.'),
 		'#upload_validators' => array('file_validate_extensions' => array('xls xlsx'), '_exam_is_file_spreadsheet'=>array()),
 	);
+
 	$form['submit']=array(
 		'#type' => 'submit',
 		'#value' => t('Next Step >'),
@@ -227,19 +228,119 @@ function exam_scores_form_step2($form, $form_state) {
 		'body.sidebar-first div #post-content { width: 960px; }'.
 		'div#sidebar { display: none; }' => array('type'=>'inline')
 	);
-	$r=db_query('SELECT o.name AS oname, c.series, c.name as cname FROM {operations} o '.
-		'INNER JOIN {certificates_operations} co ON o.oid=co.oid '.
-		'INNER JOIN {certificates} c ON c.cid=co.cid '.
-		'WHERE coid=:coid',
-		array(':coid'=>$form_state['storage']['coid'])
-	)->fetchObject();
+	$co=certificate_operations_load($form_state['storage']['certificate'], $form_state['storage']['operation']);
 	$form['co']=array(
 		'#type' => 'item',
-		'#markup' => sprintf('%s %s', $r->oname, $r->cname),
+		'#title' => t('Selected organization'),
+		'#markup' => t('!org !series !cname',
+			array('!org'=>$co->oname, '!series'=>$co->series, '!cname'=>$co->cname)),
 	);
+	drupal_set_title(t('Upload scores for !org !cname', array('!org'=>$co->oname, '!cname'=>$co->cname)));
+
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	$file=file_load($form_state['storage']['fid']);
+	$uri = drupal_realpath($file->uri);
+	if(interface_exists('SaeInterface')) {
+		file_put_contents( SAE_TMP_PATH . $file->filename, file_get_contents($uri));
+		$uri=SAE_TMP_PATH . $file->filename;
+	}
+	$format=PHPExcel_IOFactory::identify($uri);
+	$objReader = PHPExcel_IOFactory::createReader($format);
+	$objReader->setReadDataOnly(true);
+	$objPHPExcel = $objReader->load($uri);
+	$max_cols=$objPHPExcel->getActiveSheet()->getHighestColumn();
+	$max_rows=$objPHPExcel->getActiveSheet()->getHighestRow();
+
+	$options=drupal_map_assoc(range(1,$max_rows));
+
+	$form['beginrow']=array(
+		'#type' => 'select',
+		'#title' => t('row is the first row which contains data.'),
+		'#title_display' => 'after',
+		'#prefix' => '<div class="inline-element-div">'.t('The ', array(), array('context'=>'prefix of massive uploading form')),
+		'#suffix' => '</div>',
+		'#description' => t('Please select where the data series begins, not the row where header locates.'),
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['beginrow_col'])?$form_state['storage']['beginrow_col']:'2',
+	);
+
+	$options=drupal_map_assoc(range('A',$max_cols));
+	$form['idcardnumber']=array(
+		'#type' => 'select',
+		'#title' => t('column contains ID Card nubmer.'),
+		'#title_display' => 'after',
+		'#prefix' => '<div class="inline-element-div">'.t('The ', array(), array('context'=>'prefix of massive uploading form')),
+		'#suffix' => '</div>',
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['idcardnumber_col'])?$form_state['storage']['idcardnumber_col']:'',
+	);
+	$form['name']=array(
+		'#type' => 'select',
+		'#title' => t('column contains real name.'),
+		'#title_display' => 'after',
+		'#prefix' => '<div class="inline-element-div">'.t('The ', array(), array('context'=>'prefix of massive uploading form')),
+		'#suffix' => '</div>',
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['name_col'])?$form_state['storage']['name_col']:'',
+	);
+	$form['score']=array(
+		'#type' => 'select',
+		'#title' => t('column contains score.'),
+		'#title_display' => 'after',
+		'#description' => t('You may store any value including any mixed text in this column.').
+			t('What you have entered in the column will be displayed to the user as is.'),
+		'#prefix' => '<div class="inline-element-div">'.t('The ', array(), array('context'=>'prefix of massive uploading form')),
+		'#suffix' => '</div>',
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['score_col'])?$form_state['storage']['score_col']:'',
+	);
+	$form['result']=array(
+		'#type' => 'select',
+		'#title' => t('column contains result.'),
+		'#title_display' => 'after',
+		'#description' => t('Where 0 means Absent, 1 means Fail, 2 means Pass.'),
+		'#prefix' => '<div class="inline-element-div">'.t('The ', array(), array('context'=>'prefix of massive uploading form')),
+		'#suffix' => '</div>',
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['result_col'])?$form_state['storage']['result_col']:'',
+	);
+	// Display raw data for the spreadsheet
+	$origrows=$objPHPExcel->getActiveSheet()->rangeToArray(
+		'A1:'.($max_cols>'L'?'L':$max_cols).($max_rows>10?'10':$max_rows),	// The worksheet range that we want to retrieve
+		'',			// Value that should be returned for empty cells
+		TRUE,		// Should formulas be calculated (the equivalent of getCalculatedValue() for each cell)
+		TRUE,		// Should values be formatted (the equivalent of getFormattedValue() for each cell)
+		FALSE		// Should the array be indexed by cell row and cell column
+	);
+	$rows=array();
+	$i=1;
+	foreach($origrows as $row) {
+		array_unshift($row, array('data'=>$i++, 'header'=>TRUE));
+		$rows[]=$row;
+	}
+	$header=range('A',($max_cols>'L'?'L':$max_cols));
+	array_unshift($header, sprintf('[%s]',$objPHPExcel->getActiveSheet()->getTitle()));
+	$objPHPExcel->disconnectWorksheets();
+	unset($objPHPExcel);
+	unset($objReader);
+	$form['demotitle']=array(
+		'#type' => 'item',
+		'#title' => t('Raw data for @filename', array('@filename'=>$file->filename)),
+		'#markup' => t('Note: the raw data shows the hidden rows and columns, which means these rows and column will be proceeded.'),
+	);
+	$form['demo']=array(
+		'#markup' => theme('table',array('header'=>$header, 'rows'=>$rows)),
+	);
+
 	$form['previous']=array(
 		'#type' => 'submit',
 		'#value' => t('< Previous Step'),
+		'#validate' => array(),
 		'#submit' => array('exam_scores_form_step2_previous_submit'),
 		'#limit_validation_errors' => array(),
 	);
@@ -247,12 +348,109 @@ function exam_scores_form_step2($form, $form_state) {
 		'#type' => 'submit',
 		'#value' => t('Upload data file & save'),
 	);
+	$form['#validate']=array('exam_scores_form_step2_validate');
+	$form['#submit']=array('exam_scores_form_step2_submit');
 	return $form;
 }
 
 function exam_scores_form_step2_previous_submit($form, &$form_state) {
 	$form_state['rebuild']=TRUE;
 	$form_state['storage']['step']=1;
+}
+
+function exam_scores_form_step2_validate($form, $form_state) {
+	$co=certificate_operations_load($form_state['storage']['certificate'], $form_state['storage']['operation']);
+	drupal_set_title(t('Upload scores for !org !cname', array('!org'=>$co->oname, '!cname'=>$co->cname)));
+	$test=array();
+	$test[]=$form_state['values']['idcardnumber'];
+	$test[]=$form_state['values']['name'];
+	$test[]=$form_state['values']['score'];
+	$test[]=$form_state['values']['result'];
+	$test=array_unique($test);
+	if(count($test)<4) {
+		form_set_error('idcardnumber', t('You must select different columns.'));
+		form_set_error('name');
+		form_set_error('score');
+		form_set_error('result');
+		return;
+	}
+	$file=file_load($form_state['storage']['fid']);
+	$uri=drupal_realpath($file->uri);
+	if(interface_exists('SaeInterface')) {
+		file_put_contents( SAE_TMP_PATH . $file->filename, file_get_contents($uri));
+		$uri=SAE_TMP_PATH . $file->filename;
+	}
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	$format=PHPExcel_IOFactory::identify($uri);
+	$objReader = PHPExcel_IOFactory::createReader($format);
+	$objReader->setReadDataOnly(true);
+	$objPHPExcel = $objReader->load($uri);
+	$objWorksheet = $objPHPExcel->getActiveSheet();
+	$row=$form_state['values']['beginrow'];
+	$max_rows=$objWorksheet->getHighestRow();
+	$results=array();
+	//$row=$max_rows+1;
+	while($row <= $max_rows) {
+		$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
+		if(empty($idcardnumber)) {
+			form_set_error('idcardnumber', t('The value for idcardnumber at !cell is empty.',
+				array('!cell'=>$form_state['values']['idcardnumber'].$row)
+			));
+			break;
+		}
+		$name=trim($objWorksheet->getCell($form_state['values']['name'].$row)->getCalculatedValue());
+		if(empty($name)) {
+			form_set_error('name', t('The value for name at !cell is empty.',
+				array('!cell'=>$form_state['values']['name'].$row)
+			));
+			break;
+		}
+		$result=trim($objWorksheet->getCell($form_state['values']['result'].$row)->getCalculatedValue());
+		if(!in_array($result, array(0,1,2))) {
+			form_set_error('result', t('The value of result in !cell is "!value", where it must be 0, 1, or 2.',
+				array('!cell'=>$form_state['values']['result'].$row, '!value'=>$result)
+			));
+			break;
+		}
+		if(isset($results[$idcardnumber])) {
+			form_set_error('idcardnumber', t('There are duplicate idcard number "!idcardnumber" at row !cell1 and !cell2',
+				array('!cell1'=> $form_state['values']['idcardnumber'].$results[$idcardnumber]['row'],
+					'!cell2'=>$form_state['values']['idcardnumber'].$row,
+					'!idcardnumber'=>$idcardnumber)
+			));
+			break;
+		}
+		$query=db_query('SELECT EXISTS(SELECT * FROM {scores_temp} WHERE coid=:coid AND idcard_number=:idcardnumber)',
+			array(':coid'=>$form_state['storage']['coid'], ':idcardnumber'=>$idcardnumber)
+		);
+		if($query->fetchField()) {
+			form_set_error('idcardnumber', t('You have already uploaded scores and result for !idcardnumber in !cell',
+				array('!cell'=>$form_state['values']['idcardnumber'].$row, '!idcardnumber'=>$idcardnumber)
+			));
+			break;
+		}
+		$query=db_query('SELECT EXISTS(SELECT * FROM {signup} s INNER JOIN {students} st ON s.uid=st.uid '.
+			'WHERE s.coid=:coid AND st.idcard_number=:idcardnumber)',
+			array(':coid'=>$form_state['storage']['coid'], ':idcardnumber'=>$idcardnumber)
+		);
+		if($query->fetchField()) {
+			form_set_error('idcardnumber', t('You have already uploaded scores and result for !idcardnumber in !cell',
+				array('!cell'=>$form_state['values']['idcardnumber'].$row, '!idcardnumber'=>$idcardnumber)
+			));
+			break;
+		}
+		$results[$idcardnumber]=array('row'=>$row, 'name'=>$name, 'result'=>$result);
+		$row++;
+	}
+	$objWorksheet->disconnectCells();
+	$objPHPExcel->disconnectWorksheets();
+	unset($objPHPExcel);
+	unset($objReader);
+}
+
+function exam_scores_form_step2_submit($form, &$form_state) {
+	$form_state['rebuild']=TRUE;
+	drupal_set_message('Settings saved.');
 }
 
 function exam_scores_query_form($form, $form_state) {
