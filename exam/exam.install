@@ -19,6 +19,9 @@ function exam_schema() {
 			'status' => array('type' => 'int', 'size'=>'tiny', 'default' => 0),
 		),
 		'primary key' => array('sid'),
+		'unique keys' => array(
+			'uid_coid' => array('uid','coid'),
+		),
 		'indexes' => array(
 			'uid' => array('uid'),
 			'coid' => array('coid'),
@@ -64,4 +67,11 @@ function exam_schema() {
 	);
 
 	return $schema;
+}
+
+/**
+ * add unqiue index uid_coid
+ */
+function exam_update_7000() {
+	db_add_unique_key('certificates_issues', 'uid_coid', array('uid','coid'));
 }

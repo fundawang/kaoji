@@ -523,7 +523,10 @@ function exam_user_scores() {
 
 function exam_user_scores_access() {
 	$r=student_load($GLOBALS['user']);
-	return !empty($r);
+	if(empty($r)) return FALSE;
+	return db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE status=:status AND uid=:uid)',
+		array(':uid'=>$r->uid, ':status'=>exam_signup_status_FINISHED)
+	)->fetchField();
 }
 
 function exam_user_update($edit, $account, $category) {
@@ -539,7 +542,7 @@ function exam_user_login($edit, $account) {
 	);
 	$c=0;
 	foreach($query as $r) {
-		$i=db_insert('signup')->fields(array(
+		$i=db_merge('signup')->key(array('uid'=>$s->uid, 'coid'=>$r->coid))->fields(array(
 			'uid' => $s->uid,
 			'coid' => $r->coid,
 			'score' => $r->score,
