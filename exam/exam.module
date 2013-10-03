@@ -80,8 +80,7 @@ function exam_menu() {
 		'description' => "Query uploaded the scores",
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('exam_scores_query_form'),
-		'access callback' => 'user_access',
-		'access arguments'=> array('admin certificates'),
+		'access callback' => 'exam_scores_query_form_access',
 	);
 	$items['user/scores'] = array(
 		'title' => 'My scores',
@@ -504,6 +503,14 @@ function exam_scores_form_step2_submit($form, &$form_state) {
 	$form_state['storage']['score_col']=$form_state['values']['score'];
 	$form_state['storage']['result_col']=$form_state['values']['result'];
 	drupal_set_message(t('!num scores saved.', array('!num'=>$i)));
+}
+
+function exam_scores_query_form_access() {
+	if(!user_access('admin certificates')) return FALSE;
+	$query_temp=db_query('SELECT EXISTS(SELECT * FROM {scores_temp})')->fetchField();
+	if($query_temp)
+		return db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE status=:status)', array(':status'=>exam_signup_status_FINISHED))->fetchField();
+	return FALSE;
 }
 
 function exam_scores_query_form($form, $form_state) {
