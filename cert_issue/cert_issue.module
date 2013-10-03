@@ -171,6 +171,11 @@ function cert_issue_menu() {
 
 function _cert_issue_is_file_spreadsheet($file) {
 	if(!preg_match('/\.xlsx{0,1}$/i', $file->filename)) return array();
+	if($file->filesize > 1024*100)
+		return array(
+			t('The file is %filesize exceeding the maximum file size of %maxsize.', array('%filesize' => format_size($file->filesize), '%maxsize' => format_size(1024*100))).
+			t('Please consider splice the file into multiple pieces.')
+		);
 	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
 	$result=0;
 	switch($format=PHPExcel_IOFactory::identify($file->uri)) {
