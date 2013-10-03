@@ -262,7 +262,7 @@ function exam_scores_form_step2($form, $form_state) {
 		'#description' => t('Please select where the data series begins, not the row where header locates.'),
 		'#options' => $options,
 		'#required' => TRUE,
-		'#default_value' => isset($form_state['storage']['beginrow_col'])?$form_state['storage']['beginrow_col']:'2',
+		'#default_value' => isset($form_state['storage']['beginrow'])?$form_state['storage']['beginrow']:'2',
 	);
 
 	$options=drupal_map_assoc(range('A',$max_cols));
@@ -389,8 +389,13 @@ function exam_scores_form_step2_validate($form, $form_state) {
 	$row=$form_state['values']['beginrow'];
 	$max_rows=$objWorksheet->getHighestRow();
 	$results=array();
-	//$row=$max_rows+1;
 	while($row <= $max_rows) {
+		watchdog('exam',
+			'!row are being proceeded.', array(
+				'!row'=>$row,
+				),
+			WATCHDOG_INFO
+		);
 		$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
 		if(empty($idcardnumber)) {
 			form_set_error('idcardnumber', t('The value for idcardnumber at !cell is empty.',
@@ -449,8 +454,49 @@ function exam_scores_form_step2_validate($form, $form_state) {
 }
 
 function exam_scores_form_step2_submit($form, &$form_state) {
+	var_dump($form_state['values']); exit;
+	$file=file_load($form_state['storage']['fid']);
+	$uri=drupal_realpath($file->uri);
+	if(interface_exists('SaeInterface')) {
+		file_put_contents( SAE_TMP_PATH . $file->filename, file_get_contents($uri));
+		$uri=SAE_TMP_PATH . $file->filename;
+	}
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpexcel/PHPExcel.php');
+	$format=PHPExcel_IOFactory::identify($uri);
+	$objReader = PHPExcel_IOFactory::createReader($format);
+	$objReader->setReadDataOnly(true);
+	$objPHPExcel = $objReader->load($uri);
+	$objWorksheet = $objPHPExcel->getActiveSheet();
+	$row=$form_state['values']['beginrow'];
+	$max_rows=$objWorksheet->getHighestRow();
+	$i=0;
+	for($row=$form_state['values']['beginrow']; $row<=$max_rows; $row++) {
+		$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
+		$name=trim($objWorksheet->getCell($form_state['values']['name'].$row)->getCalculatedValue());
+		$score=trim($objWorksheet->getCell($form_state['values']['score'].$row)->getCalculatedValue());
+		$result=trim($objWorksheet->getCell($form_state['values']['result'].$row)->getCalculatedValue());
+		$r=db_insert('scores_temp')->fields(array(
+			'idcard_number' => $idcardnumber,
+			'name' => $name,
+			'coid' => $form_state['storage']['coid'],
+			'score' => $score,
+			'result' => $result,
+		))->execute();
+		if($r) $i++;
+	}
+	$objWorksheet->disconnectCells();
+	$objPHPExcel->disconnectWorksheets();
+	unset($objPHPExcel);
+	unset($objReader);
 	$form_state['rebuild']=TRUE;
-	drupal_set_message('Settings saved.');
+	$form_state['storage']['step']=1;
+	$form_state['storage']['fid']=0;
+	$form_state['storage']['beginrow']=$form_state['values']['beginrow'];
+	$form_state['storage']['idcardnumber_col']=$form_state['values']['idcardnumber'];
+	$form_state['storage']['name_col']=$form_state['values']['name'];
+	$form_state['storage']['score_col']=$form_state['values']['score'];
+	$form_state['storage']['result_col']=$form_state['values']['result'];
+	drupal_set_message(t('!num scores saved.', array('!num'=>$i)));
 }
 
 function exam_scores_query_form($form, $form_state) {
