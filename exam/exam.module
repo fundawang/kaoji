@@ -465,7 +465,7 @@ function exam_scores_form_step2_validate($form, $form_state) {
 			));
 			break;
 		}
-		$query=db_query('SELECT EXISTS(SELECT * FROM {signup} s INNER JOIN {students} st WHERE s.uid=st.uid '.
+		$query=db_query('SELECT EXISTS(SELECT * FROM {signup} s INNER JOIN {students} st ON s.uid=st.uid '.
 			'WHERE s.coid=:coid AND st.idcard_number=:idcardnumber AND s.ticket_number<>:ticket_number)',
 			array(':coid'=>$form_state['storage']['coid'], ':idcardnumber'=>$idcardnumber, ':ticket_number'=>$ticketnumber)
 		);
@@ -554,9 +554,9 @@ function exam_scores_form_step2_submit($form, &$form_state) {
 function exam_scores_query_form_access() {
 	if(!user_access('admin certificates')) return FALSE;
 	$query_temp=db_query('SELECT EXISTS(SELECT * FROM {scores_temp})')->fetchField();
-	if($query_temp)
+	if(!$query_temp)
 		return db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE status=:status)', array(':status'=>exam_signup_status_FINISHED))->fetchField();
-	return FALSE;
+	return TRUE;
 }
 
 function exam_scores_query_form($form, $form_state) {
