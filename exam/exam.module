@@ -602,7 +602,7 @@ function exam_scores_query_form($form, $form_state) {
 		'#value' => t('Query'),
 		'#suffix' => '</div>',
 	);
-	if(empty($_SESSION['coid'] || empty($_SESSION['coid']['cid']) || empty($_SESSION['coid']['oid']))) return $form;
+	if(empty($_SESSION['coid']) || empty($_SESSION['coid']['cid']) || empty($_SESSION['coid']['oid'])) return $form;
 	$header=array(
 		array('data'=>t('Real Name'), 'field'=>'uid'),
 		array('data'=>t('IDCard Number'), 'field'=>'idcard_number'),
@@ -775,17 +775,24 @@ function exam_user_login($edit, $account) {
 	$s=student_load($account);
 	if(empty($s)) return;
 	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)',
-		array(':idcardnumber'=>$s->idcard_number, ':name'=>$s->name, ':exname'=>$s->exname)
+		array(':idcardnumber'=>$edit['idnumber'], ':name'=>$edit['truename'], ':exname'=>$edit['exname'])
 	);
 	$c=0;
 	foreach($query as $r) {
-		$i=db_merge('signup')->key(array('uid'=>$s->uid, 'coid'=>$r->coid))->fields(array(
+		$i=db_merge('signup')->key(array('uid'=>$s->uid, 'coid'=>$r->coid))->updateFields(array(
 			'uid' => $s->uid,
 			'coid' => $r->coid,
 			'score' => $r->score,
 			'result' => $r->result,
 			'status' => exam_signup_status_FINISHED
-		))->insertFields(array('ticket_number'=>$r->ticket_number))->execute();
+		))->insertFields(array(
+			'ticket_number'=>$r->ticket_number,
+			'uid' => $s->uid,
+			'coid' => $r->coid,
+			'score' => $r->score,
+			'result' => $r->result,
+			'status' => exam_signup_status_FINISHED
+		))->execute();
 		if($i) {
 			db_delete('scores_temp')->condition('stid',$r->stid)->execute();
 			$c++;
