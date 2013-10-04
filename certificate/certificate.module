@@ -677,13 +677,21 @@ function certificate_operations_form_create_submit($form, &$form_state) {
 	$form_state['rebuild']=TRUE;
 }
 
-function certificate_operations_load($cid, $oid) {
-	$query=db_query('SELECT co.*, c.name AS cname, o.name as oname, c.series FROM {certificates_operations} co '.
-		'INNER JOIN {operations} o ON o.oid=co.oid '.
-		'INNER JOIN {certificates} c ON c.cid=co.cid '.
-		'WHERE co.cid=:cid AND co.oid=:oid',
-		array(':cid'=>$cid, ':oid'=>$oid)
-	);
+function certificate_operations_load($cid, $oid=NULL) {
+	if(!empty($oid))
+		$query=db_query('SELECT co.*, c.name AS cname, o.name as oname, c.series FROM {certificates_operations} co '.
+			'INNER JOIN {operations} o ON o.oid=co.oid '.
+			'INNER JOIN {certificates} c ON c.cid=co.cid '.
+			'WHERE co.cid=:cid AND co.oid=:oid',
+			array(':cid'=>$cid, ':oid'=>$oid)
+		);
+	else 
+		$query=db_query('SELECT co.*, c.name AS cname, o.name as oname, c.series FROM {certificates_operations} co '.
+			'INNER JOIN {operations} o ON o.oid=co.oid '.
+			'INNER JOIN {certificates} c ON c.cid=co.cid '.
+			'WHERE co.coid=:coid',
+			array(':coid'=>$cid)
+		);
 	return $query->fetchObject();
 }
 
