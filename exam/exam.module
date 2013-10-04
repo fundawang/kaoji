@@ -560,7 +560,102 @@ function exam_scores_query_form_access() {
 }
 
 function exam_scores_query_form($form, $form_state) {
-	return array();
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div div, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline'),
+		'div.ajax-progress-throbber {display: none; }'=>array('type'=>'inline'),
+	);
+	$rdbo=db_query('SELECT * FROM {operations} o WHERE '.
+		'EXISTS(SELECT * FROM (SELECT coid FROM {signup} UNION SELECT coid FROM {scores_temp}) t '.
+		'INNER JOIN {certificates_operations} co ON t.coid=co.coid WHERE co.oid=o.oid) '.
+		'ORDER by oid DESC'
+	);
+	$options=array();
+	foreach($rdbo as $r) {
+		if(checkdate(substr($r->oid, 4, 2),1,$r->year))
+			$options[$r->oid]=$r->name;
+	}
+	$operation = isset($form_state['values']['operation']) ? $form_state['values']['operation'] : (isset($_SESSION['coid']['oid'])?$_SESSION['coid']['oid']:key($options));
+	$form['operation']=array(
+		'#type' => 'select',
+		'#title' => t('Select Operation and certificate'),
+		'#prefix' => '<div class="inline-element-div">',
+		'#required' => TRUE,
+		'#default_value' => $operation,
+		'#options' => $options,
+		'#ajax' => array(
+			'callback' => '_exam_score_form_step1_operation_select_callback',
+			'wrapper' => 'scores-certificate-selectbox',
+		),
+	);
+	$form['certificate']=array(
+		'#type' => 'select',
+		'#title' => t('Certificate'),
+		'#title_display' => 'invisible',
+		'#prefix' => '<div id="scores-certificate-selectbox" class="inline-element-div">',
+		'#suffix' => '</div>',
+		'#options' => _exam_scores_query_certificate_select_options($operation),
+		'#default_value' => isset($form_state['values']['certificate']) ? $form_state['values']['certificate'] : (isset($_SESSION['coid']['cid'])?$_SESSION['coid']['cid']:''),
+		'#required' => TRUE,
+	);
+	$form['submit']=array(
+		'#type' => 'submit',
+		'#value' => t('Query'),
+		'#suffix' => '</div>',
+	);
+	if(empty($_SESSION['coid'] || empty($_SESSION['coid']['cid']) || empty($_SESSION['coid']['oid']))) return $form;
+	$header=array(
+		array('data'=>t('Real Name'), 'field'=>'uid'),
+		array('data'=>t('IDCard Number'), 'field'=>'idcard_number'),
+		array('data'=>t('Ticket Number'), 'field'=>'ticket_number'),
+		array('data'=>t('Score')),
+		array('data'=>t('Result'), 'field'=>'result', 'sort'=>'DESC'),
+	);
+	$co=certificate_operations_load($_SESSION['coid']['cid'], $_SESSION['coid']['oid']);
+	$query=db_select('signup','su')->condition('status',exam_signup_status_FINISHED);
+	$query->innerJoin('students','s','su.uid=s.uid');
+	$query->fields('s',array('uid','idcard_number','name'))->fields('su',array('coid','ticket_number','score','result'));
+	$query->condition('coid',$co->coid);
+	$uquery=db_select('scores_temp','st')->condition('coid',$co->coid);
+	$uquery->addExpression('0','uid');
+	$uquery->addExpression('st.idcard_number','idcard_number');
+	$uquery->addExpression('st.name','name');
+	$uquery->addExpression('st.coid','coid');
+	$uquery->addExpression('st.ticket_number','ticket_number');
+	$uquery->addExpression('st.score','score');
+	$uquery->addExpression('st.result','result');
+	$query->union($uquery, 'UNION ALL');
+	$rquery=db_select($query,'t')->fields('t')->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);;
+	$rdbo=$rquery->execute();
+	foreach ($rdbo as $r) {
+		$rows[]=array(
+			($r->uid)?l($r->name, 'user/'.$r->uid):$r->name,
+			$r->idcard_number,
+			$r->ticket_number,
+			$r->score,
+			_exam_result_id_into_text($r->result),
+		);
+	}
+	$form['abc']=array('#markup'=>theme('table', array('header'=>$header, 'rows'=>$rows)));
+	$form['pager']=array('#markup'=>theme('pager', array('quantity'=>5)));
+	return $form;
+}
+
+function _exam_scores_query_certificate_select_options($operation) {
+	$query=db_query('SELECT c.cid, c.series, c.name FROM {certificates} c WHERE '.
+		'EXISTS(SELECT * FROM (SELECT coid FROM {signup} UNION SELECT coid FROM {scores_temp}) t '.
+		'INNER JOIN {certificates_operations} co ON t.coid=co.coid WHERE co.cid=c.cid AND co.oid=:oid) ',
+		array(':oid'=>$operation)
+	);
+	$options=array();
+	foreach($query as $r)
+		$options[$r->cid]=sprintf('%s - %s', $r->series, $r->name);
+	return $options;
+}
+
+function exam_scores_query_form_submit($form, &$form_state) {
+	$_SESSION['coid']['oid']=$form_state['values']['operation'];
+	$_SESSION['coid']['cid']=$form_state['values']['certificate'];
+	$form_state['rebuild']=TRUE;
 }
 
 function exam_user_scores() {
