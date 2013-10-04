@@ -169,7 +169,7 @@ function exam_scores_form_step1($form, $form_state) {
 		'#type' => 'managed_file',
 		'#title' => t('Data file'),
 		'#required' => TRUE,
-		'#default_value' => isset($form_state['storage']['fid'])?$form_state['storage']['fid']:21,
+		'#default_value' => isset($form_state['storage']['fid'])?$form_state['storage']['fid']:0,
 		'#description' => t('Only .xls and .xlsx spreadsheets are supported.'),
 		'#upload_validators' => array('file_validate_extensions' => array('xls xlsx'), '_exam_is_file_spreadsheet'=>array()),
 	);
@@ -775,7 +775,7 @@ function exam_user_login($edit, $account) {
 	$s=student_load($account);
 	if(empty($s)) return;
 	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)',
-		array(':idcardnumber'=>$edit['idnumber'], ':name'=>$edit['truename'], ':exname'=>$edit['exname'])
+		array(':idcardnumber'=>$edit['idnumber'], ':name'=>$edit['truename'], ':exname'=>($edit['haveexname']?$edit['exname']:$edit['truename'])
 	);
 	$c=0;
 	foreach($query as $r) {
