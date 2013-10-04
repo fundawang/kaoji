@@ -437,6 +437,16 @@ function exam_scores_form_step2_validate($form, $form_state) {
 			));
 			break;
 		}
+		$query=db_query('SELECT EXISTS('.
+			'SELECT * FROM {students} WHERE idcard_number=:idcardnumber AND name <>:name AND exname <>:name)',
+			array(':idcardnumber'=>$idcardnumber, ':name'=>$name)
+		);
+		if($query->fetchField()) {
+			form_set_error('name', t('The name (!name) you specified in !cell differs from what the student had filled.',
+				array('!cell'=>$form_state['values']['name'].$row, '!name'=>$name)
+			));
+			break;
+		}
 		$query=db_query('SELECT EXISTS(SELECT * FROM {scores_temp} WHERE coid=:coid AND idcard_number=:idcardnumber)',
 			array(':coid'=>$form_state['storage']['coid'], ':idcardnumber'=>$idcardnumber)
 		);
@@ -447,8 +457,8 @@ function exam_scores_form_step2_validate($form, $form_state) {
 			break;
 		}
 		$query=db_query('SELECT EXISTS(SELECT * FROM {signup} s INNER JOIN {students} st ON s.uid=st.uid '.
-			'WHERE s.coid=:coid AND st.idcard_number=:idcardnumber)',
-			array(':coid'=>$form_state['storage']['coid'], ':idcardnumber'=>$idcardnumber)
+			'WHERE s.coid=:coid AND st.idcard_number=:idcardnumber AND s.status=:status)',
+			array(':coid'=>$form_state['storage']['coid'], ':idcardnumber'=>$idcardnumber, ':status'=>exam_signup_status_FINISHED)
 		);
 		if($query->fetchField()) {
 			form_set_error('idcardnumber', t('You have already uploaded scores and result for !idcardnumber in !cell',
