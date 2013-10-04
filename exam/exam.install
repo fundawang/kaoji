@@ -13,6 +13,7 @@ function exam_schema() {
 		'fields' => array(
 			'sid' => array('type' => 'serial', 'not null' => TRUE),
 			'uid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+			'ticket_number' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
 			'coid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
 			'score' => array('type' => 'varchar', 'length' => 100, 'not null' => FALSE),
 			'result' => array('type' => 'int', 'size' => 'tiny', 'not null' => FALSE),
@@ -26,6 +27,7 @@ function exam_schema() {
 			'uid' => array('uid'),
 			'coid' => array('coid'),
 			'result' => array('result'),
+			'ticket_number' => array('ticket_number'),
 			'status' => array('status'),
 		),
 		'foreign keys' => array(
@@ -43,6 +45,7 @@ function exam_schema() {
 		'description' => t('This table stores temporarily uploaded scores.'),
 		'fields' => array(
 			'stid' => array('type' => 'serial', 'not null' => TRUE),
+			'ticket_number' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
 			'idcard_number' => array('type' => 'varchar', 'length' => '18', 'not null' => FALSE),
 			'name' => array('type' => 'varchar', 'length' => '50', 'not null' => TRUE, 'default' => ''),
 			'coid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
@@ -55,6 +58,7 @@ function exam_schema() {
 		),
 		'indexes' => array(
 			'idcard_number' => array('idcard_number'),
+			'ticket_number' => array('ticket_number'),
 			'name' => array('name'),
 			'result' => array('result'),
 		),
@@ -74,4 +78,18 @@ function exam_schema() {
  */
 function exam_update_7000() {
 	db_add_unique_key('signup', 'uid_coid', array('uid','coid'));
+}
+
+/**
+ * add ticket_number field
+ */
+function exam_update_7001() {
+	$ticket_number = array('type' => 'varchar', 'length' => '20', 'not null' => FALSE);
+	$index = array(
+		'indexes' => array(
+			'ticket_number' => array('ticket_number')
+		)
+	);
+	db_add_field('signup', 'ticket_number', $ticket_number, $index);
+	db_add_field('scores_temp', 'ticket_number', $ticket_number, $index);
 }

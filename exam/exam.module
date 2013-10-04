@@ -293,6 +293,16 @@ function exam_scores_form_step2($form, $form_state) {
 		'#required' => TRUE,
 		'#default_value' => isset($form_state['storage']['idcardnumber_col'])?$form_state['storage']['idcardnumber_col']:'',
 	);
+	$form['ticketnumber']=array(
+		'#type' => 'select',
+		'#title' => t('column contains ticket nubmer.'),
+		'#title_display' => 'after',
+		'#prefix' => '<div class="inline-element-div">'.t('The ', array(), array('context'=>'prefix of massive uploading form')),
+		'#suffix' => '</div>',
+		'#options' => $options,
+		'#required' => TRUE,
+		'#default_value' => isset($form_state['storage']['ticketnumber_col'])?$form_state['storage']['ticketnumber_col']:'',
+	);
 	$form['name']=array(
 		'#type' => 'select',
 		'#title' => t('column contains real name.'),
@@ -381,11 +391,12 @@ function exam_scores_form_step2_validate($form, $form_state) {
 	drupal_set_title(t('Upload scores for !org !cname', array('!org'=>$co->oname, '!cname'=>$co->cname)));
 	$test=array();
 	$test[]=$form_state['values']['idcardnumber'];
+	$test[]=$form_state['values']['ticketnumber'];
 	$test[]=$form_state['values']['name'];
 	$test[]=$form_state['values']['score'];
 	$test[]=$form_state['values']['result'];
 	$test=array_unique($test);
-	if(count($test)<4) {
+	if(count($test)<5) {
 		form_set_error('idcardnumber', t('You must select different columns.'));
 		form_set_error('name');
 		form_set_error('score');
@@ -412,6 +423,13 @@ function exam_scores_form_step2_validate($form, $form_state) {
 		if(empty($idcardnumber)) {
 			form_set_error('idcardnumber', t('The value for idcardnumber at !cell is empty.',
 				array('!cell'=>$form_state['values']['idcardnumber'].$row)
+			));
+			break;
+		}
+		$ticketnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['ticketnumber'].$row)->getCalculatedValue()));
+		if(empty($ticketnumber)) {
+			form_set_error('ticketnumber', t('The value for idcardnumber at !cell is empty.',
+				array('!cell'=>$form_state['values']['ticketnumber'].$row)
 			));
 			break;
 		}
@@ -444,6 +462,16 @@ function exam_scores_form_step2_validate($form, $form_state) {
 		if($query->fetchField()) {
 			form_set_error('name', t('The name (!name) you specified in !cell differs from what the student had filled.',
 				array('!cell'=>$form_state['values']['name'].$row, '!name'=>$name)
+			));
+			break;
+		}
+		$query=db_query('SELECT EXISTS(SELECT * FROM {signup} s INNER JOIN {students} st WHERE s.uid=st.uid '.
+			'WHERE s.coid=:coid AND st.idcard_number=:idcardnumber AND s.ticket_number<>:ticket_number)',
+			array(':coid'=>$form_state['storage']['coid'], ':idcardnumber'=>$idcardnumber, ':ticket_number'=>$ticketnumber)
+		);
+		if($query->fetchField()) {
+			form_set_error('ticketnumber', t('The ticket number (!ticketnumber) you specified in !cell differs from the system value.',
+				array('!cell'=>$form_state['values']['idcardnumber'].$row, '!ticketnumber'=>$ticketnumber)
 			));
 			break;
 		}
@@ -493,11 +521,13 @@ function exam_scores_form_step2_submit($form, &$form_state) {
 	$i=0;
 	for($row=$form_state['values']['beginrow']; $row<=$max_rows; $row++) {
 		$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
+		$ticketnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['ticketnumber'].$row)->getCalculatedValue()));
 		$name=trim($objWorksheet->getCell($form_state['values']['name'].$row)->getCalculatedValue());
 		$score=trim($objWorksheet->getCell($form_state['values']['score'].$row)->getCalculatedValue());
 		$result=trim($objWorksheet->getCell($form_state['values']['result'].$row)->getCalculatedValue());
 		$r=db_insert('scores_temp')->fields(array(
 			'idcard_number' => $idcardnumber,
+			'ticket_number' => $ticketnumber,
 			'name' => $name,
 			'coid' => $form_state['storage']['coid'],
 			'score' => $score,
@@ -514,6 +544,7 @@ function exam_scores_form_step2_submit($form, &$form_state) {
 	$form_state['storage']['fid']=0;
 	$form_state['storage']['beginrow']=$form_state['values']['beginrow'];
 	$form_state['storage']['idcardnumber_col']=$form_state['values']['idcardnumber'];
+	$form_state['storage']['ticketnumber_col']=$form_state['values']['ticketnumber'];
 	$form_state['storage']['name_col']=$form_state['values']['name'];
 	$form_state['storage']['score_col']=$form_state['values']['score'];
 	$form_state['storage']['result_col']=$form_state['values']['result'];
@@ -659,7 +690,7 @@ function exam_user_login($edit, $account) {
 			'score' => $r->score,
 			'result' => $r->result,
 			'status' => exam_signup_status_FINISHED
-		))->execute();
+		))->insertFields(array('ticket_number'=>$r->ticket_number))->execute();
 		if($i) {
 			db_delete('scores_temp')->condition('stid',$r->stid)->execute();
 			$c++;
