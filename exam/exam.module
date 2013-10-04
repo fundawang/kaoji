@@ -14,6 +14,9 @@ define('exam_signup_status_WAIT_APPROVED', 1);
 define('exam_signup_status_APPROVED', 2);
 define('exam_signup_status_FINISHED', 3);
 
+define('exam_signup_result_ABSENT', 0);
+define('exam_signup_result_FAILED', 1);
+define('exam_signup_result_PASSED', 2);
  
 /**
  * Implementation of hook_help().
@@ -29,9 +32,10 @@ function exam_help($path, $arg) {
 		case 'exam/preload':
 			$output = t('In this page, you could preload certificates already issued, for students to claim.');
 			break;
-		case 'exam/operations':
-			$output = t('There are two methods adding operations: copying existing operation or creating from scratch.');
-			$output .= t('You may also adding certificates to operation one by one.');
+		case 'user/scores':
+			$output = t('In this page, you will see the scores and result of the test you have participated.');
+			$output .= t('If you have passed certain test, you may print the score report by clicking [@passbutton] link.',
+				array('@passbutton'=>_exam_result_id_into_text(exam_signup_result_PASSED)));
 			break;
 	}
 	if (isset($output))
@@ -315,7 +319,8 @@ function exam_scores_form_step2($form, $form_state) {
 		'#type' => 'select',
 		'#title' => t('column contains result.'),
 		'#title_display' => 'after',
-		'#description' => t('Where 0 means Absent, 1 means Fail, 2 means Pass.'),
+		'#description' => t('Where !absent means Absent, !fail means Fail, !pass means Pass.',
+			array('!absent'=>exam_signup_result_ABSENT, '!fail'=>exam_signup_result_FAILED, '!pass'=>exam_signup_result_PASSED)),
 		'#prefix' => '<div class="inline-element-div">'.t('The ', array(), array('context'=>'prefix of massive uploading form')),
 		'#suffix' => '</div>',
 		'#options' => $options,
@@ -418,7 +423,7 @@ function exam_scores_form_step2_validate($form, $form_state) {
 			break;
 		}
 		$result=trim($objWorksheet->getCell($form_state['values']['result'].$row)->getCalculatedValue());
-		if(!in_array($result, array(0,1,2))) {
+		if(!in_array($result, array(exam_signup_result_ABSENT,exam_signup_result_FAILED,exam_signup_result_PASSED))) {
 			form_set_error('result', t('The value of result in !cell is "!value", where it must be 0, 1, or 2.',
 				array('!cell'=>$form_state['values']['result'].$row, '!value'=>$result)
 			));
@@ -518,7 +523,97 @@ function exam_scores_query_form($form, $form_state) {
 }
 
 function exam_user_scores() {
-	return '';
+	$output='';
+	drupal_add_css(
+		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline;}',
+		'inline'
+	);
+	drupal_add_js(drupal_get_path('module', 'exam') .'/jquery.cookie.js');
+	$query=db_query('SELECT o.oid, o.name AS oname FROM {operations} o WHERE EXISTS('.
+		'SELECT * FROM {signup} s INNER JOIN {certificates_operations} co ON s.coid=co.coid '.
+		'WHERE s.uid=:uid AND s.status=:status AND co.oid=o.oid) ORDER BY oid DESC',
+		array(':uid'=>$GLOBALS['user']->uid, ':status'=>exam_signup_status_FINISHED)
+	);
+	$oids=array();
+	$onames=array();
+	foreach($query as $r) {
+		$oids[]=$r->oid;
+		$onames[$r->oid]=$r->oname;
+	}
+	if(count($oids)==1) {
+		$oid=$oids[0];
+		setcookie('operation', NULL);
+		$output.=sprintf('<strong>%s</strong>',t('Your scores and result of !oname goes:', array('!oname'=>$r->oname)));
+	} else {
+		var_dump($_COOKIE['operation']);
+		$oid=isset($_COOKIE['operation'])&&in_array($_COOKIE['operation'], $oids)?$_COOKIE['operation']:$oids[0];
+		$operation_select=array(
+			'#type' => 'select',
+			'#id' => 'operationselect',
+			'#name' => 'operationselect',
+			'#title' => t('Select operation'),
+			'#prefix' => '<div class="inline-element-div">',
+			'#suffix' => '</div>',
+			'#default_value' => $oid,
+			'#attributes' => array('onChange' => ''.
+				'jQuery.cookie("operation", jQuery(":input[name=operationselect]").val());'.
+				'window.location.reload();'.
+			''),
+			'#options' => $onames,
+		);
+		$output.=drupal_render($operation_select);
+	}
+	if(isset($_COOKIE['operation']))
+		drupal_add_js(
+			'jQuery(document).ready(function(){'.
+				'jQuery("#operationselect").val('.$_COOKIE['operation'].');'.
+				'});'.
+				'',
+			'inline'
+		);
+
+	$rdbo=db_query('SELECT s.sid, s.score, s.result, s.status, o.oid, o.name as oname, c.series, c.name as cname '.
+		'FROM {signup} s INNER JOIN {certificates_operations} co ON s.coid=co.coid '.
+		'INNER JOIN {operations} o ON co.oid=o.oid '.
+		'INNER JOIN {certificates} c ON co.cid=c.cid '.
+		'WHERE s.uid=:uid AND s.status=:status AND co.oid=:oid ORDER by s.coid DESC',
+		array(':uid'=>$GLOBALS['user']->uid, ':status'=>exam_signup_status_FINISHED, ':oid'=>$oid)
+	);
+
+	$rows=array();
+	foreach($rdbo as $r) {
+		$rows[]=array(
+			$r->series,
+			$r->cname,
+			$r->score,
+		);
+		if($r->result==exam_signup_result_PASSED && exam_user_scores_report_access($r->sid))
+			$rows[count($rows)-1][]=l(_exam_result_id_into_text($r->result), 'user/scores/report/'.$r->sid,
+				array('attributes'=>array('title'=>t('Click to print score report')))
+			);
+		else
+			$rows[count($rows)-1][]=_exam_result_id_into_text($r->result);
+	}
+
+	$header=array(
+		t('Series'),
+		t('Specification'),
+		t('Score'),
+		t('Result')
+	);
+
+	$output .= theme('table', array('header'=>$header, 'rows'=>$rows));
+
+	return $output;
+}
+
+function _exam_result_id_into_text($resultid) {
+	$text=array(
+		t('Absent'),
+		t('Failed'),
+		t('Passed')
+	);
+	return $text[$resultid];
 }
 
 function exam_user_scores_access() {
@@ -527,6 +622,12 @@ function exam_user_scores_access() {
 	return db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE status=:status AND uid=:uid)',
 		array(':uid'=>$r->uid, ':status'=>exam_signup_status_FINISHED)
 	)->fetchField();
+}
+
+function exam_user_scores_report_access($sid) {
+	return db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE sid=:sid AND uid=:uid AND status=:status)',
+		array(':sid'=>$sid, ':uid'=>$GLOBALS['user']->uid, ':status'=>exam_signup_status_FINISHED)
+	);
 }
 
 function exam_user_update($edit, $account, $category) {
