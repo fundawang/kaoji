@@ -24,10 +24,14 @@ function cert_issue_help($path, $arg) {
 			$output = t('List my certificates, clamed and issued.');
 			break;
 		case 'user/claim':
-			$output = t('Claim system preloaded certificates.');
+			$output = t('Please select the certificate you wan to claim. ').
+				t('If your certificates is not listed here, please contact us.').'<br/>'.
+				t('Tip: if you have changed your name in the pass, please put it down at !url, so that we could make it recognized.',
+					array('!url'=>l(t('exname in personal information'), 'user/'.$GLOBALS['user']->uid.'/edit')));
 			break;
 		case 'user/exchange':
-			$output = t('Apply for certificates exchange.');
+			$output = t('In this page, you could deal with certificate exchange feature.');
+			$output .= t('You will see current open rolls for you to select.');
 			break;
 		case 'certificate/massiveupload': 
 			$output = t('If you want to massive upload the certificates which are already issued, please use this feature.');
@@ -765,12 +769,6 @@ function cert_issue_user_claim_access($user=NULL) {
 
 function cert_issue_user_claim_form($form, $form_state) {
 	$student=student_load($GLOBALS['user']);
-	$form['description']=array(
-		'#markup' => t('Please select the certificate you wan to claim. ').
-			t('If your certificates is not listed here, please contact us.').'<br/>'.
-			t('Tip: if you have changed your name in the pass, please put it down at !url, so that we could make it recognized.',
-				array('!url'=>l(t('here'), 'user/'.$student->uid.'/edit'))),
-	);
 	$header=array(
 		t('Organizations series'),
 		t('Specification name'),
@@ -1123,8 +1121,6 @@ function cert_issue_exchange_rolls_form_close_submit($form, $form_state) {
 
 function cert_issue_user_exchange_page() {
 	$output = '';
-	$output .= t('In this page, you could deal with certificate exchange feature.');
-	$output .= t('You will see current open rolls for you to select.');
 
 	$header = array(
 		t('New certificate to apply'),
