@@ -159,7 +159,7 @@ function cert_issue_menu() {
 		'plid' => '0',
 		'weight' => 2,
 		'page callback' => 'cert_issue_user_exchange_page',
-		'access callback' => 'cert_issue_user_certs_page_access',
+		'access callback' => 'cert_issue_user_exchange_page_access',
 	);
 	$items['user/exchange/%cer'] = array(
 		'type' => MENU_CALLBACK,
@@ -760,7 +760,7 @@ function cert_issue_user_certs_page() {
 
 function cert_issue_user_claim_access($user=NULL) {
 	if(empty($user)) $user=$GLOBALS['user'];
-	if(isset($user->uid) && $user->uid && user_access('claim certificates')) {
+	if(isset($user->uid) && $user->uid) {
 		$student=student_load($user);
 		if(!$student) return FALSE;
 		else return !user_access('preload certificates', $user);
@@ -1117,6 +1117,14 @@ function cert_issue_exchange_rolls_form_close_submit($form, $form_state) {
 			),
 		WATCHDOG_INFO
 	);
+}
+
+function cert_issue_user_exchange_page_access() {
+	$s=student_load($GLOBALS['user']);
+	if($s) {
+		return db_query('SELECT EXISTS(SELECT * FROM {certificates_exchange_rolls} WHERE status=:status)', array(':status'=>2))
+		->fetchField();
+	} else return FALSE;
 }
 
 function cert_issue_user_exchange_page() {
