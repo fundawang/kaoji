@@ -602,7 +602,7 @@ function student_load($user) {
 		$obj->photoid=$obj->picture;
 		if(!empty($obj->picture)) {
 			if(interface_exists('SaeInterface')) {
-				$fname=sprintf('kvdb://student_photos_%s_%s', $user->uid, $rev);
+				$fname=sprintf('kvdb://student_photos_%s_%s', $user->uid, $obj->photoid);
 				$obj->rawpicture=file_get_contents($fname);
 			} else {
 				$obj->rawpicture=db_query('SELECT photo FROM {photos} WHERE uid=:uid AND photoid=:rev', array(':uid'=>$user->uid, ':rev'=>$obj->picture))->fetchField();
