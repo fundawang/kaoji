@@ -763,7 +763,8 @@ function cert_issue_user_claim_access($user=NULL) {
 	if(isset($user->uid) && $user->uid) {
 		$student=student_load($user);
 		if(!$student) return FALSE;
-		else return !user_access('preload certificates', $user);
+		if(user_access('preload certificates', $user)) return FALSE;
+		return db_query('SELECT EXISTS(SELECT * FROM {certificates_issues} WHERE claimedby=0)')->fetchField();
 	} else return FALSE;
 }
 
