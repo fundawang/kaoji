@@ -624,7 +624,7 @@ function exam_scores_query_form($form, $form_state) {
 	$uquery->addExpression('st.score','score');
 	$uquery->addExpression('st.result','result');
 	$query->union($uquery, 'UNION ALL');
-	$rquery=db_select($query,'t')->fields('t')->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);;
+	$rquery=db_select($query,'t')->fields('t')->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);
 	$rdbo=$rquery->execute();
 	foreach ($rdbo as $r) {
 		$rows[]=array(
@@ -776,7 +776,7 @@ function exam_user_login($edit, $account) {
 	if(empty($s)) return;
 	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)',
 		array(':idcardnumber'=>$edit['idnumber'], ':name'=>$edit['truename'], ':exname'=>($edit['haveexname']?$edit['exname']:$edit['truename'])
-	);
+	));
 	$c=0;
 	foreach($query as $r) {
 		$i=db_merge('signup')->key(array('uid'=>$s->uid, 'coid'=>$r->coid))->updateFields(array(
