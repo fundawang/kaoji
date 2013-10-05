@@ -289,8 +289,10 @@ function student_user_account_form(&$form, $form_state) {
 
 function student_picture($account, $rev) {
 	if(interface_exists('SaeInterface')) {
-		$fname=sprintf('kvdb://student_photos_%s_%s', $account->uid, $rev);
-		$img_tmp=file_get_contents($fname);
+		$kv = new SaeKV();
+		$kv->init();
+		$fname=sprintf('student_photos_%s_%s', $account->uid, $rev);
+		$img_tmp=$kv->get($fname);
 		if(!$img_tmp) return NULL;
 	}
 	else {
@@ -402,8 +404,10 @@ function student_user_account_form_save($form, &$form_state) {
 				$photoid=db_insert('photos')->fields(array(
 					'uid' => $user->uid,
 				))->execute();
-				$fname=sprintf('kvdb://student_photos_%s_%s', $user->uid, $photoid);
-				file_put_contents($fname, base64_encode($data));
+				$kv = new SaeKV();
+				$kv->init();
+				$fname=sprintf('student_photos_%s_%s', $user->uid, $photoid);
+				$kv->set($fname, base64_encode($data));
 			} else {
 				$photoid=db_insert('photos')->fields(array(
 					'uid' => $user->uid,
@@ -602,8 +606,10 @@ function student_load($user) {
 		$obj->photoid=$obj->picture;
 		if(!empty($obj->picture)) {
 			if(interface_exists('SaeInterface')) {
-				$fname=sprintf('kvdb://student_photos_%s_%s', $user->uid, $obj->photoid);
-				$obj->rawpicture=file_get_contents($fname);
+				$fname=sprintf('student_photos_%s_%s', $user->uid, $obj->photoid);
+				$kv = new SaeKV();
+				$kv->init();
+				$obj->rawpicture=$kv->get($fname);
 			} else {
 				$obj->rawpicture=db_query('SELECT photo FROM {photos} WHERE uid=:uid AND photoid=:rev', array(':uid'=>$user->uid, ':rev'=>$obj->picture))->fetchField();
 			}
