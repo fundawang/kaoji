@@ -94,6 +94,21 @@ function exam_menu() {
 		'page callback' => 'exam_user_scores',
 		'access callback' => 'exam_user_scores_access',
 	);
+	$items['user/scores/report/%'] = array(
+		'type' => MENU_VISIBLE_IN_BREADCRUMB,
+		'title' => 'Score Report',
+		'page callback' => 'exam_user_scores_report',
+		'page arguments' => array(3),
+		'access callback' => 'exam_user_scores_report_access',
+		'access arguments'=> array(3),
+	);
+	$items['user/scores/report/%/picture.png'] = array(
+		'type' => MENU_CALLBACK,
+		'page callback' => 'exam_user_scores_report_qrcode',
+		'page arguments' => array(3),
+		'access callback' => 'exam_user_scores_report_access',
+		'access arguments'=> array(3),
+	);
 	return $items;
 }
 
@@ -604,11 +619,11 @@ function exam_scores_query_form($form, $form_state) {
 	);
 	if(empty($_SESSION['coid']) || empty($_SESSION['coid']['cid']) || empty($_SESSION['coid']['oid'])) return $form;
 	$header=array(
-		array('data'=>t('Real Name'), 'field'=>'uid'),
+		array('data'=>t('Real Name'), 'field'=>'uid', 'sort'=>'desc'),
 		array('data'=>t('IDCard Number'), 'field'=>'idcard_number'),
 		array('data'=>t('Ticket Number'), 'field'=>'ticket_number'),
 		array('data'=>t('Score')),
-		array('data'=>t('Result'), 'field'=>'result', 'sort'=>'DESC'),
+		array('data'=>t('Result'), 'field'=>'result'),
 	);
 	$co=certificate_operations_load($_SESSION['coid']['cid'], $_SESSION['coid']['oid']);
 	$query=db_select('signup','su')->condition('status',exam_signup_status_FINISHED);
@@ -624,7 +639,7 @@ function exam_scores_query_form($form, $form_state) {
 	$uquery->addExpression('st.score','score');
 	$uquery->addExpression('st.result','result');
 	$query->union($uquery, 'UNION ALL');
-	$rquery=db_select($query,'t')->fields('t')->extend('TableSort')->orderByHeader($header)->extend('PagerDefault')->limit(20);
+	$rquery=db_select($query,'t')->fields('t')->extend('TableSort')->orderByHeader($header)->orderBy('idcard_number')->extend('PagerDefault')->limit(20);
 	$rdbo=$rquery->execute();
 	foreach ($rdbo as $r) {
 		$rows[]=array(
@@ -763,7 +778,56 @@ function exam_user_scores_access() {
 function exam_user_scores_report_access($sid) {
 	return db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE sid=:sid AND uid=:uid AND status=:status)',
 		array(':sid'=>$sid, ':uid'=>$GLOBALS['user']->uid, ':status'=>exam_signup_status_FINISHED)
+	)->fetchField();
+}
+
+function exam_user_scores_report($sid) {
+	drupal_add_css(drupal_get_path('module', 'exam') .'/exam.report.all.css', array('media'=>'all'));
+	drupal_add_css(drupal_get_path('module', 'exam') .'/exam.report.print.css', array('media'=>'print'));
+	drupal_add_js(
+		'jQuery(document).ready(function(){'.
+			'window.print();'.
+			'});'.
+			'',
+		'inline'
 	);
+	$s=student_load($GLOBALS['user']);
+	$s->idcard_number=substr_replace($s->idcard_number, '*', 3, strlen($s->idcard_number)-6);
+	$sg=db_query('SELECT * FROM {signup} WHERE sid=:sid', array(':sid'=>$sid))->fetchObject();
+	$co=certificate_operations_load($sg->coid);
+	$output='';
+	$rows=array();
+	$rows[]=array(array('data'=>t('Real Name'), 'header'=>TRUE), $s->name);
+	$rows[]=array(array('data'=>t('Gender'), 'header'=>TRUE), $s->gender==1?t('Male'):t('Female'));
+	$rows[]=array(array('data'=>t('IDCard Number'), 'header'=>TRUE), $s->idcard_number);
+	$rows[]=array(array('data'=>t('Exam Operation'), 'header'=>TRUE), $co->oname);
+	$rows[]=array(array('data'=>t('Specification'), 'header'=>TRUE), sprintf('%s<br/>%s',$co->series, $co->cname));
+	$rows[]=array(array('data'=>t('Score'), 'header'=>TRUE), $sg->score);
+	$rows[]=array(array('data'=>t('Result'), 'header'=>TRUE), _exam_result_id_into_text($sg->result));
+	$output.=theme('table', array('rows'=>$rows));
+
+	$output.=sprintf('<div id="certgovernorg"><div class="img"><img src="%suser/scores/report/%s/picture.png" align="left"/></div>', base_path(), $sg->sid);
+	$output.=sprintf('<div class="text">%s<br/>%s</div></div>',variable_get('site_name', 'Drupal'),$GLOBALS['base_url']);
+
+	return $output;
+}
+
+function exam_user_scores_report_qrcode($sid) {
+	include_once(DRUPAL_ROOT.'/sites/all/libraries/phpqrcode/qrlib.php');
+	$s=student_load($GLOBALS['user']);
+	$s->idcard_number=substr_replace($s->idcard_number, '*', 3, strlen($s->idcard_number)-6);
+	$sg=db_query('SELECT * FROM {signup} WHERE sid=:sid', array(':sid'=>$sid))->fetchObject();
+	$co=certificate_operations_load($sg->coid);
+	$output='';
+	$rows=array();
+	$rows[]=sprintf('%s: %s', t('Real Name'), $s->name);
+	$rows[]=sprintf('%s: %s', t('Gender'), $s->gender==1?t('Male'):t('Female'));
+	$rows[]=sprintf('%s: %s', t('IDCard Number'), $s->idcard_number);
+	$rows[]=sprintf('%s: %s', t('Exam Operation'), $co->oname);
+	$rows[]=sprintf('%s: %s', t('Specification'), sprintf('%s %s',$co->series, $co->cname));
+	$rows[]=sprintf('%s: %s', t('Score'), $sg->score);
+	$rows[]=sprintf('%s: %s', t('Result'), _exam_result_id_into_text($sg->result));
+	QRcode::png(implode("\n", $rows));
 }
 
 function exam_user_update($edit, $account, $category) {
@@ -774,8 +838,18 @@ function exam_user_update($edit, $account, $category) {
 function exam_user_login($edit, $account) {
 	$s=student_load($account);
 	if(empty($s)) return;
-	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)',
-		array(':idcardnumber'=>$edit['idnumber'], ':name'=>$edit['truename'], ':exname'=>($edit['haveexname']?$edit['exname']:$edit['truename'])
+	$idcardnumber=isset($edit['idnumber'])?$edit['idnumber']:$s->idcard_number;
+	$name=isset($edit['truename'])?$edit['truename']:$s->name;
+	if(isset($edit['haveexname']))
+		if($edit['haveexname'])
+			$exname=$edit['exname'];
+		else
+			$exname=$edit['name'];
+	else $exname=empty($s->exname)?$s->name:$s->exname;
+	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)', array(
+		':idcardnumber'=>$idcardnumber,
+		':name'=>$name,
+		':exname'=>$exname
 	));
 	$c=0;
 	foreach($query as $r) {
