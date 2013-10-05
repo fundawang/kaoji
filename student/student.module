@@ -626,6 +626,6 @@ function student_load($user) {
 
 function student_delete($user) {
 	db_delete('photos')->condition('uid',$user->uid)->execute();
-	db_delete('student')->condition('uid',$user->uid)->execute();
+	db_delete('students')->condition('uid',$user->uid)->execute();
 }
 ?>
