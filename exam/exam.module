@@ -13,6 +13,7 @@ define('exam_signup_status_UNKNOW', 0);
 define('exam_signup_status_WAIT_APPROVED', 1);
 define('exam_signup_status_APPROVED', 2);
 define('exam_signup_status_FINISHED', 3);
+define('exam_signup_status_FINISHED_BATCH', 4);
 
 define('exam_signup_result_ABSENT', 0);
 define('exam_signup_result_FAILED', 1);
@@ -76,6 +77,22 @@ function exam_menu() {
 		'page arguments' => array('exam_scores_form'),
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin certificates'),
+	);
+	$items['exam/scores/query']=array(
+		'type' => MENU_LOCAL_TASK,
+		'title' => 'Query uploaded the scores',
+		'weight' => 2,
+		'description' => "Query uploaded the scores",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_scores_query_form'),
+		'access callback' => 'exam_scores_query_form_access',
+	);
+	$items['exam/scores/query/unbind/%/%']=array(
+		'type' => MENU_VISIBLE_IN_BREADCRUMB,
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_scores_query_unbind_form', 4,5),
+		'access callback' => 'exam_scores_query_unbind_form_access',
+		'access arguments'=> array(4,5),
 	);
 	$items['exam/scores/query']=array(
 		'type' => MENU_LOCAL_TASK,
@@ -563,7 +580,14 @@ function exam_scores_form_step2_submit($form, &$form_state) {
 	$form_state['storage']['name_col']=$form_state['values']['name'];
 	$form_state['storage']['score_col']=$form_state['values']['score'];
 	$form_state['storage']['result_col']=$form_state['values']['result'];
-	drupal_set_message(t('!num scores saved.', array('!num'=>$i)));
+	$co=certificate_operations_load($form_state['storage']['coid']);
+	drupal_set_message(t('!num scores of !org !cname saved.', array('!num'=>$i, '!org'=>$co->oname, '!cname'=>$co->cname)));
+	watchdog('exam',
+		'Uploaded !num scores for !org !cname.', array(
+			'!num'=>$i, '!org'=>$co->oname, '!cname'=>$co->cname
+			),
+		WATCHDOG_INFO
+	);
 }
 
 function exam_scores_query_form_access() {
@@ -629,6 +653,8 @@ function exam_scores_query_form($form, $form_state) {
 	$query=db_select('signup','su')->condition('status',exam_signup_status_FINISHED);
 	$query->innerJoin('students','s','su.uid=s.uid');
 	$query->fields('s',array('uid','idcard_number','name'))->fields('su',array('coid','ticket_number','score','result'));
+	$query->addExpression('\'s\'','tablename');
+	$query->addExpression('sid','uniqueid');
 	$query->condition('coid',$co->coid);
 	$uquery=db_select('scores_temp','st')->condition('coid',$co->coid);
 	$uquery->addExpression('0','uid');
@@ -638,6 +664,8 @@ function exam_scores_query_form($form, $form_state) {
 	$uquery->addExpression('st.ticket_number','ticket_number');
 	$uquery->addExpression('st.score','score');
 	$uquery->addExpression('st.result','result');
+	$uquery->addExpression('\'t\'','tablename');
+	$uquery->addExpression('st.stid','uniqueid');
 	$query->union($uquery, 'UNION ALL');
 	$rquery=db_select($query,'t')->fields('t')->extend('TableSort')->orderByHeader($header)->orderBy('idcard_number')->extend('PagerDefault')->limit(20);
 	$rdbo=$rquery->execute();
@@ -649,6 +677,9 @@ function exam_scores_query_form($form, $form_state) {
 			$r->score,
 			_exam_result_id_into_text($r->result),
 		);
+		if(exam_scores_query_unbind_form_access($r->tablename, $r->uniqueid))
+			$rows[count($rows)-1][count($rows[count($rows)-1])-1].=
+				l(' ['.t('Delete').']', 'exam/scores/query/unbind/'.$r->tablename.'/'.$r->uniqueid);
 	}
 	$form['abc']=array('#markup'=>theme('table', array('header'=>$header, 'rows'=>$rows)));
 	$form['pager']=array('#markup'=>theme('pager', array('quantity'=>5)));
@@ -672,6 +703,85 @@ function exam_scores_query_form_submit($form, &$form_state) {
 	$_SESSION['coid']['cid']=$form_state['values']['certificate'];
 	$form_state['rebuild']=TRUE;
 }
+
+function signup_finished_load($sid) {
+	return db_query('SELECT * FROM {signup} WHERE status=:status AND sid=:sid',
+		array(':status'=>exam_signup_status_FINISHED, ':sid'=>$sid)
+	)->fetchObject();
+}
+
+function exam_scores_query_unbind_form_access($tablename, $uniqueid) {
+	if(!user_access('admin certificates')) return FALSE;
+	if(!in_array($tablename, array('s','t'))) return FALSE;
+	if($tablename=='s')
+		return $GLOBALS['user']->uid==1 && db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE sid=:sid AND status=:status)', array(':sid'=>$uniqueid, ':status'=>exam_signup_status_FINISHED))->fetchField();
+	else
+		return db_query('SELECT EXISTS(SELECT * FROM {scores_temp} WHERE stid=:stid)', array(':stid'=>$uniqueid))->fetchField();
+}
+
+function exam_scores_query_unbind_form($form, $form_state, $tablename, $uniqueid) {
+	$title=t('About to remove score');
+	if($tablename=='s') {
+		$r=db_query('SELECT s.uid, s.name, s.idcard_number, sg.score, sg.result, sg.coid FROM {students} s '.
+			'INNER JOIN {signup} sg ON s.uid=sg.uid WHERE sg.sid=:sid',
+			array(':sid'=>$uniqueid)
+		)->fetchObject();
+	} else {
+		$r=db_query('SELECT name, idcard_number, score, result, coid FROM {scores_temp} WHERE stid=:stid', array(':stid'=>$uniqueid))
+			->fetchObject();
+	}
+	$co=certificate_operations_load($r->coid);
+	$form['co']=array(
+		'#type' => 'item',
+		'#title' => t('Organization and certificate'),
+		'#markup' => t('!org !series !cname',
+			array('!org'=>$co->oname, '!series'=>$co->series, '!cname'=>$co->cname)),
+	);
+	$form['name']=array(
+		'#type' => 'item',
+		'#title' => t('Real Name'),
+		'#markup' => isset($r->uid)?l($r->name, 'user/'.$r->uid):$r->name,
+	);
+	$form['idcard_number']=array(
+		'#type' => 'item',
+		'#title' => t('IDCard Number'),
+		'#markup' => $r->idcard_number,
+	);
+	$form['score']=array(
+		'#type' => 'item',
+		'#title' => t('Score'),
+		'#markup' => $r->score,
+	);
+	$form['result']=array(
+		'#type' => 'item',
+		'#title' => t('Result'),
+		'#markup' => _exam_result_id_into_text($r->result),
+	);
+	return confirm_form($form,
+		$title,
+		$_SERVER['HTTP_REFERER'],
+		t('This action cannot be undone.').t('You will need to reupload the result.'),
+		t('Remove')
+	);
+}
+
+function exam_scores_query_unbind_form_submit($form, &$form_state) {
+	if(arg(4)=='s')
+		db_delete('signup')->condition('sid',arg(5))->execute();
+	else
+		db_delete('scores_temp')->condition('stid',arg(5))->execute();
+	drupal_set_message(t('The score for !name in !cname is removed.', 
+		array('!name'=>$form['name']['#markup'], '!cname'=>$form['co']['#markup']))
+	);
+	watchdog('exam',
+		'Removed !name score in !cname.', array(
+			'!name'=>$form['name']['#markup'], '!cname'=>$form['co']['#markup']
+			),
+		WATCHDOG_INFO
+	);
+	$form_state['redirect']='exam/scores/query';
+}
+
 
 function exam_user_scores() {
 	$output='';
