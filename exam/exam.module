@@ -27,11 +27,12 @@ function exam_help($path, $arg) {
 		case 'exam':
 			$output = t('You may administrate various basic information of certificates via following features.');
 			break;
-		case 'exam/specification':
-			$output = t('In this page, you could modify or add new certificate specification.');
+		case 'exam/scores':
+			$output = t('In this page, you could batch upload the scores and results of previous exams.');
+			$output .= t('The uploaded file must be less than 100KB, so that the system could process it more quickly.');
 			break;
-		case 'exam/preload':
-			$output = t('In this page, you could preload certificates already issued, for students to claim.');
+		case 'exam/scores/query':
+			$output = t('In this page, you could query the uploaded scores. If there are mistakes, and the scores are not claimed by student, you may remove it.');
 			break;
 		case 'user/scores':
 			$output = t('In this page, you will see the scores and result of the test you have participated.');
@@ -202,7 +203,10 @@ function exam_scores_form_step1($form, $form_state) {
 		'#title' => t('Data file'),
 		'#required' => TRUE,
 		'#default_value' => isset($form_state['storage']['fid'])?$form_state['storage']['fid']:0,
-		'#description' => t('Only .xls and .xlsx spreadsheets are supported.'),
+		'#description' => t('Only .xls and .xlsx spreadsheets are supported.').
+			t('The required columns are ID Card number, Ticket Number, Real Name, Score and Result.').
+			t('Please note that the result should be represented with intergers, where !absent means Absent, !fail means Fail, !pass means Pass.',
+			array('!absent'=>exam_signup_result_ABSENT, '!fail'=>exam_signup_result_FAILED, '!pass'=>exam_signup_result_PASSED)),
 		'#upload_validators' => array('file_validate_extensions' => array('xls xlsx'), '_exam_is_file_spreadsheet'=>array()),
 	);
 
@@ -430,6 +434,7 @@ function exam_scores_form_step2_validate($form, $form_state) {
 	$test=array_unique($test);
 	if(count($test)<5) {
 		form_set_error('idcardnumber', t('You must select different columns.'));
+		form_set_error('ticketnumber');
 		form_set_error('name');
 		form_set_error('score');
 		form_set_error('result');
@@ -641,6 +646,42 @@ function exam_scores_query_form($form, $form_state) {
 		'#value' => t('Query'),
 		'#suffix' => '</div>',
 	);
+	$form['conditions']=array(
+		'#type' => 'fieldset',
+		'#title' => t('Filter citeras'),
+		'#collapsible' => TRUE,
+		'#collapsed' => TRUE,
+	);
+	$form['conditions']['realname']=array(
+		'#type' => 'textfield',
+		'#title' => t('Real Name'),
+		'#prefix' => '<div class="inline-element-div">',
+		'#default_value' => !empty($_SESSION['citera']['realname'])?$_SESSION['citera']['realname']:'',
+		'#attributes' => array('title' => t('You may only enter the surname to search')),
+		'#size' => 15,
+	);
+	$form['conditions']['ticketnumber']=array(
+		'#type' => 'textfield',
+		'#title' => t('Ticket Number'),
+		'#default_value' => !empty($_SESSION['citera']['ticketnumber'])?$_SESSION['citera']['ticketnumber']:'',
+		'#size' => 20,
+	);
+	$form['conditions']['result']=array(
+		'#type' => 'select',
+		'#title' => t('Result'),
+		'#options' => array(
+			'-1' => t('All'),
+			exam_signup_result_ABSENT => _exam_result_id_into_text(exam_signup_result_ABSENT),
+			exam_signup_result_FAILED => _exam_result_id_into_text(exam_signup_result_FAILED),
+			exam_signup_result_PASSED => _exam_result_id_into_text(exam_signup_result_PASSED),
+		),
+		'#default_value' => !empty($_SESSION['citera']['result'])?$_SESSION['citera']['result']:'-1',
+	);
+	$form['conditions']['submit']=array(
+		'#type' => 'submit',
+		'#value' => t('Query'),
+	);
+
 	if(empty($_SESSION['coid']) || empty($_SESSION['coid']['cid']) || empty($_SESSION['coid']['oid'])) return $form;
 	$header=array(
 		array('data'=>t('Real Name'), 'field'=>'uid', 'sort'=>'desc'),
@@ -656,6 +697,12 @@ function exam_scores_query_form($form, $form_state) {
 	$query->addExpression('\'s\'','tablename');
 	$query->addExpression('sid','uniqueid');
 	$query->condition('coid',$co->coid);
+	if(!empty($_SESSION['citera']['realname']))
+		$query->condition('s.name',$_SESSION['citera']['realname'].'%', 'LIKE');
+	if(!empty($_SESSION['citera']['ticketnumber']))
+		$query->condition('su.ticket_number',$_SESSION['citera']['ticketnumber']);
+	if(!empty($_SESSION['citera']['result']))
+		$query->condition('su.result',$_SESSION['citera']['result']);
 	$uquery=db_select('scores_temp','st')->condition('coid',$co->coid);
 	$uquery->addExpression('0','uid');
 	$uquery->addExpression('st.idcard_number','idcard_number');
@@ -666,9 +713,18 @@ function exam_scores_query_form($form, $form_state) {
 	$uquery->addExpression('st.result','result');
 	$uquery->addExpression('\'t\'','tablename');
 	$uquery->addExpression('st.stid','uniqueid');
+	if(!empty($_SESSION['citera']['realname']))
+		$uquery->condition('st.name',$_SESSION['citera']['realname'].'%', 'LIKE');
+	if(!empty($_SESSION['citera']['ticketnumber']))
+		$uquery->condition('st.ticket_number',$_SESSION['citera']['ticketnumber']);
+	if(!empty($_SESSION['citera']['result']))
+		$uquery->condition('st.result',$_SESSION['citera']['result']);
 	$query->union($uquery, 'UNION ALL');
-	$rquery=db_select($query,'t')->fields('t')->extend('TableSort')->orderByHeader($header)->orderBy('idcard_number')->extend('PagerDefault')->limit(20);
+	$rquery=db_select($query,'t')->fields('t');
+	$totalnum=$rquery->countQuery()->execute()->fetchField();
+	$rquery=$rquery->extend('TableSort')->orderByHeader($header)->orderBy('idcard_number')->extend('PagerDefault')->limit(20);
 	$rdbo=$rquery->execute();
+	$rows=array();
 	foreach ($rdbo as $r) {
 		$rows[]=array(
 			($r->uid)?l($r->name, 'user/'.$r->uid):$r->name,
@@ -681,7 +737,14 @@ function exam_scores_query_form($form, $form_state) {
 			$rows[count($rows)-1][count($rows[count($rows)-1])-1].=
 				l(' ['.t('Delete').']', 'exam/scores/query/unbind/'.$r->tablename.'/'.$r->uniqueid);
 	}
-	$form['abc']=array('#markup'=>theme('table', array('header'=>$header, 'rows'=>$rows)));
+	$form['list']=array(
+		'#markup'=>theme('table', 
+			array('header'=>$header, 'rows'=>$rows, 'empty'=>t('No records found.'))),
+	);
+	if($totalnum)
+		$form['list']['#prefix']=t('There are !num records totally.', array('!num'=>$totalnum));
+	else
+		$form['conditions']['#collapsed']=FALSE;
 	$form['pager']=array('#markup'=>theme('pager', array('quantity'=>5)));
 	return $form;
 }
@@ -701,6 +764,19 @@ function _exam_scores_query_certificate_select_options($operation) {
 function exam_scores_query_form_submit($form, &$form_state) {
 	$_SESSION['coid']['oid']=$form_state['values']['operation'];
 	$_SESSION['coid']['cid']=$form_state['values']['certificate'];
+	if(empty($form_state['values']['realname']))
+		unset($_SESSION['citera']['realname']);
+	else
+		$_SESSION['citera']['realname']=trim($form_state['values']['realname']);
+	if(empty($form_state['values']['ticketnumber']))
+		unset($_SESSION['citera']['ticketnumber']);
+	else
+		$_SESSION['citera']['ticketnumber']=$form_state['values']['ticketnumber'];
+	if($form_state['values']['result']=='-1')
+		unset($_SESSION['citera']['result']);
+	else
+		$_SESSION['citera']['result']=$form_state['values']['result'];
+
 	$form_state['rebuild']=TRUE;
 }
 
