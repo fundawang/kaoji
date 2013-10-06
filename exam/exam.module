@@ -787,7 +787,7 @@ function signup_finished_load($sid) {
 }
 
 function exam_scores_query_unbind_form_access($tablename, $uniqueid) {
-	if(!user_access('admin certificates')) return FALSE;
+	if(!exam_scores_query_form_access()) return FALSE;
 	if(!in_array($tablename, array('s','t'))) return FALSE;
 	if($tablename=='s')
 		return $GLOBALS['user']->uid==1 && db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE sid=:sid AND status=:status)', array(':sid'=>$uniqueid, ':status'=>exam_signup_status_FINISHED))->fetchField();
