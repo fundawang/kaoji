@@ -95,13 +95,9 @@ function exam_menu() {
 		'access callback' => 'exam_scores_query_unbind_form_access',
 		'access arguments'=> array(4,5),
 	);
-	$items['exam/scores/query']=array(
-		'type' => MENU_LOCAL_TASK,
-		'title' => 'Query uploaded the scores',
-		'weight' => 2,
-		'description' => "Query uploaded the scores",
-		'page callback' => 'drupal_get_form',
-		'page arguments' => array('exam_scores_query_form'),
+	$items['exam/scores/query/autocomplete/user']=array(
+		'type' => MENU_CALLBACK,
+		'page callback' => 'exam_scores_query_autocomplete_user',
 		'access callback' => 'exam_scores_query_form_access',
 	);
 	$items['user/scores'] = array(
@@ -656,6 +652,7 @@ function exam_scores_query_form($form, $form_state) {
 		'#type' => 'textfield',
 		'#title' => t('Real Name'),
 		'#prefix' => '<div class="inline-element-div">',
+		'#autocomplete_path' => 'exam/scores/query/autocomplete/user',
 		'#default_value' => !empty($_SESSION['citera']['realname'])?$_SESSION['citera']['realname']:'',
 		'#attributes' => array('title' => t('You may only enter the surname to search')),
 		'#size' => 15,
@@ -858,6 +855,19 @@ function exam_scores_query_unbind_form_submit($form, &$form_state) {
 	$form_state['redirect']='exam/scores/query';
 }
 
+function exam_scores_query_autocomplete_user($name='') {
+	$matches=array();
+	if($name) {
+		$query=db_query('SELECT name FROM (SELECT s.name AS name FROM {students} s INNER JOIN {signup} sg ON s.uid=sg.uid WHERE s.name LIKE :name '.
+			'UNION SELECT st.name AS name FROM {scores_temp} st WHERE st.name LIKE :name) t ORDER BY t.name LIMIT 0,20',
+			array(':name'=>db_like($name) . '%')
+		);
+		foreach($query as $r) {
+			$matches[$r->name]=$r->name;
+		}
+	}
+	drupal_json_output($matches);
+}
 
 function exam_user_scores() {
 	$output='';
@@ -882,7 +892,6 @@ function exam_user_scores() {
 		setcookie('operation', NULL);
 		$output.=sprintf('<strong>%s</strong>',t('Your scores and result of !oname goes:', array('!oname'=>$r->oname)));
 	} else {
-		var_dump($_COOKIE['operation']);
 		$oid=isset($_COOKIE['operation'])&&in_array($_COOKIE['operation'], $oids)?$_COOKIE['operation']:$oids[0];
 		$operation_select=array(
 			'#type' => 'select',
