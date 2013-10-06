@@ -663,19 +663,36 @@ function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
 			$gender=2;
 		$claimedby=(int)db_query('SELECT uid FROM {students} WHERE idcard_number=:idcard_number',
 			array(':idcard_number'=>$idcardnumber))->fetchField();
-		$r=db_insert('certificates_issues')->fields(array(
-			'coid' => $form_state['storage']['coid'],
-			'certid' => $certid,
-			'ticket_number' => $ticket_number,
-			'name' => $name,
-			'foreign_name' => $pyname,
-			'idcard_type' => $idcard_type,
-			'idcard_number' => $idcardnumber,
-			'date_of_birth' => $birthdate,
-			'gender' => $gender,
-			'issuedate' => sprintf("%04d%02d%02d",$form_state['values']['issuedate']['year'], $form_state['values']['issuedate']['month'], $form_state['values']['issuedate']['day']),
-			'claimedby' => $claimedby,
-		))->execute();
+		if($claimedby &&
+			db_query('SELECT EXISTS(SELECT * FROM {certificates_issues} WHERE claimedby=:uid AND coid=:coid)',
+				array(':uid'=>$claimedby, ':coid'=>$form_state['storage']['coid'])
+			)->fetchField())
+			$r=db_update('certificates_issues')->condition('claimedby',$claimedby)->condition('coid'=>$form_state['storage']['coid'])
+				->fields(array(
+					'certid' => $certid,
+					'ticket_number' => $ticket_number,
+					'name' => $name,
+					'foreign_name' => $pyname,
+					'idcard_type' => $idcard_type,
+					'idcard_number' => $idcardnumber,
+					'date_of_birth' => $birthdate,
+					'gender' => $gender,
+					'issuedate' => sprintf("%04d%02d%02d",$form_state['values']['issuedate']['year'], $form_state['values']['issuedate']['month'], $form_state['values']['issuedate']['day']),
+			))->execute();
+		else 
+			$r=db_insert('certificates_issues')->fields(array(
+				'coid' => $form_state['storage']['coid'],
+				'certid' => $certid,
+				'ticket_number' => $ticket_number,
+				'name' => $name,
+				'foreign_name' => $pyname,
+				'idcard_type' => $idcard_type,
+				'idcard_number' => $idcardnumber,
+				'date_of_birth' => $birthdate,
+				'gender' => $gender,
+				'issuedate' => sprintf("%04d%02d%02d",$form_state['values']['issuedate']['year'], $form_state['values']['issuedate']['month'], $form_state['values']['issuedate']['day']),
+				'claimedby' => $claimedby,
+			))->execute();
 		if($r) {
 			$i++;
 			$form_state['storage']['beginrow_col']=$form_state['values']['beginrow'];
