@@ -15,6 +15,8 @@ function exam_schema() {
 			'uid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
 			'ticket_number' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
 			'coid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+			'aid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => 0),
+			'aorder' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => 0),
 			'score' => array('type' => 'varchar', 'length' => 100, 'not null' => FALSE),
 			'result' => array('type' => 'int', 'size' => 'tiny', 'not null' => FALSE),
 			'status' => array('type' => 'int', 'size'=>'tiny', 'default' => 0),
@@ -29,6 +31,8 @@ function exam_schema() {
 			'result' => array('result'),
 			'ticket_number' => array('ticket_number'),
 			'status' => array('status'),
+			'aid' => array('aid'),
+			'aorder' => array('aorder'),
 		),
 		'foreign keys' => array(
 			'uid' => array(
@@ -38,6 +42,10 @@ function exam_schema() {
 			'coid' => array(
 				'table' => 'certificates_operations',
 				'columns' => array('coid' => 'coid'),
+			),
+			'aid' => array(
+				'table' => 'arragements',
+				'columns' => array('aid' => 'aid'),
 			),
 		),
 	);
@@ -69,6 +77,106 @@ function exam_schema() {
 			),
 		),
 	);
+	$schema['places'] = array(
+		'description' => t('This table stores the exam places which can hold the exams.'),
+		'fields' => array(
+			'pid' => array('type' => 'serial', 'not null' => TRUE),
+			'name' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE),
+			'location' => array('type' => 'varchar', 'length' => '200', 'not null' => TRUE),
+			'uid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+			'contact' => array('type' => 'varchar', 'length' => '200', 'not null' => FALSE),
+		),
+		'primary key' => array('pid'),
+		'indexes' => array(
+			'name' => array('name'),
+			'location' => array('location'),
+			'uid' => array('uid'),
+		),
+		'foreign keys' => array(
+			'uid' => array(
+				'table' => 'users',
+				'columns' => array('uid' => 'uid'),
+			),
+		),
+	);
+	$schema['rooms'] = array(
+		'description' => t('This table stores the rooms belong to certain place.'),
+		'fields' => array(
+			'rid' => array('type' => 'serial', 'not null' => TRUE),
+			'pid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+			'name' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE),
+			'capacity' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => 0),
+		),
+		'primary key' => array('rid'),
+		'unique keys' => array(
+			'pid_name' => array('pid','name'),
+		),
+		'indexes' => array(
+			'pid' => array('pid'),
+			'name' => array('capacity'),
+			'uid' => array('uid'),
+		),
+		'foreign keys' => array(
+			'pid' => array(
+				'table' => 'places',
+				'columns' => array('pid' => 'pid'),
+			),
+		),
+	);
+	$schema['rooms'] = array(
+		'description' => t('This table stores the rooms belong to certain place.'),
+		'fields' => array(
+			'rid' => array('type' => 'serial', 'not null' => TRUE),
+			'pid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE),
+			'name' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE),
+			'capacity' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => 0),
+		),
+		'primary key' => array('rid'),
+		'unique keys' => array(
+			'pid_name' => array('pid','name'),
+		),
+		'indexes' => array(
+			'pid' => array('pid'),
+			'name' => array('capacity'),
+		),
+		'foreign keys' => array(
+			'pid' => array(
+				'table' => 'places',
+				'columns' => array('pid' => 'pid'),
+			),
+		),
+	);
+	$schema['arragements'] = array(
+		'description' => t('This table stores arrangement information of certain exam.'),
+		'fields' => array(
+			'aid' => array('type' => 'serial', 'not null' => TRUE),
+			'rid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
+			'coid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
+			'seriesname' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE),
+			'date' => array('type' => 'varchar', 'length' => '8', 'not null' => TRUE),
+			'begintime' => array('type' => 'varchar', 'length' => '4', 'not null' => TRUE),
+			'endtime' => array('type' => 'varchar', 'length' => '4', 'not null' => TRUE),
+		),
+		'primary key' => array('aid'),
+		'indexes' => array(
+			'rid' => array('rid'),
+			'coid' => array('coid'),
+			'seriesname' => array('seriesname'),
+			'date' => array('date'),
+			'begintime' => array('begintime'),
+			'endtime' => array('endtime'),
+		),
+		'foreign keys' => array(
+			'rid' => array(
+				'table' => 'rooms',
+				'columns' => array('rid' => 'rid'),
+			),
+			'coid' => array(
+				'table' => 'certificates_operations',
+				'columns' => array('coid' => 'coid'),
+			),
+		),
+	);
 
 	return $schema;
 }
@@ -92,4 +200,36 @@ function exam_update_7001() {
 	);
 	db_add_field('signup', 'ticket_number', $ticket_number, $index);
 	db_add_field('scores_temp', 'ticket_number', $ticket_number, $index);
+}
+
+/**
+ * add various tables to support upcoming arrangment features
+ */
+function exam_update_7002() {
+	if(db_table_exists('places')) db_drop_table('places');
+	$schemas=drupal_get_schema_unprocessed('exam','places');
+	db_create_table('places', $schemas);
+
+	if(db_table_exists('rooms')) db_drop_table('rooms');
+	$schemas=drupal_get_schema_unprocessed('exam','rooms');
+	db_create_table('rooms', $schemas);
+
+	if(db_table_exists('arragements')) db_drop_table('arragements');
+	$schemas=drupal_get_schema_unprocessed('exam','arragements');
+	db_create_table('arragements', $schemas);
+
+	$aid = array('type' => 'int', 'unsigned' => TRUE, 'not null' => FALSE, 'default' => 0);
+	$index = array(
+		'indexes' => array(
+			'aid' => array('aid')
+		)
+	);
+	db_add_field('signup', 'aid', $aid, $index);
+
+	$index = array(
+		'indexes' => array(
+			'aorder' => array('aorder')
+		)
+	);
+	db_add_field('signup', 'aorder', $aid, $index);
 }
