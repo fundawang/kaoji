@@ -45,6 +45,20 @@ function exam_help($path, $arg) {
 }
 
 /**
+ * Implements hook_permission
+ */
+function exam_permission() {
+	return array(
+		'admin exam places' => array(
+			'title' => t('Administrater exam places'),
+		),
+		'manage own places' => array(
+			'title' => t('Manage own places'),
+		),
+	);
+}
+
+/**
  * Implementation of hook_menu().
  */
 function exam_menu() {
@@ -55,10 +69,45 @@ function exam_menu() {
 		'title' => 'Exam Management',
 		'description' => "Manage the exam",
 		'page callback' => 'exam_blocklist',
-		'weight' => 9,
+		'weight' => 8,
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin certificates'),
 		'expanded' => TRUE,
+	);
+	$items['exam/places']=array(
+		'menu_name' => 'user-menu',
+		'title' => 'Exam Places Management',
+		'description' => "Manage the Places",
+		'page callback' => 'exam_places_page',
+		'weight' => 1,
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin exam places'),
+	);
+	$items['exam/places/idcardnumber_autocompletion']=array(
+		'type' => MENU_CALLBACK,
+		'page callback' => '_exam_username_from_idcard',
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin exam places'),
+	);
+	$items['exam/places/modify/%place']=array(
+		'type' => MENU_VISIBLE_IN_BREADCRUMB,
+		'title' => 'Exam Places Management',
+		'description' => "Manage the Places",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => 'exam_places_modify_form',
+		'weight' => 1,
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin exam places'),
+	);
+	$items['exam/arrangement']=array(
+		'menu_name' => 'user-menu',
+		'title' => 'Exam Arrangement',
+		'description' => "Manage the arrangements",
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_arrangement_form'),
+		'weight' => 2,
+		'access callback' => 'user_access',
+		'access arguments'=> array('admin exam places'),
 	);
 	$items['exam/scores']=array(
 		'title' => 'Result and Scores',
@@ -1023,6 +1072,142 @@ function exam_user_scores_report_qrcode($sid) {
 	$rows[]=sprintf('%s: %s', t('Score'), $sg->score);
 	$rows[]=sprintf('%s: %s', t('Result'), _exam_result_id_into_text($sg->result));
 	QRcode::png(implode("\n", $rows));
+}
+
+function exam_places_page() {
+	$output ='';
+	if(user_access('admin exam places')) {
+		$query=db_query('SELECT p.*, u.name AS uname FROM {places} p INNER JOIN {users} u ON p.uid=u.uid');
+		$rows=array();
+		foreach($query as $r) {
+			$rows[]=array(
+				$r->name,
+				$r->location,
+				l($r->uname, 'user/'.$r->uid),
+				$r->contact
+			);
+		}
+		$header=array(
+			t('Place Name'),
+			t('Location'),
+			t('Admin'),
+			t('Contact information')
+		);
+		if(count($rows))
+			$output .= theme('table', array('header'=>$header, 'rows'=>$rows));
+		$output .= drupal_render(drupal_get_form('exam_places_add_form'));
+	}
+	return $output;
+}
+
+function exam_places_add_form($form, $form_state) {
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div div, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; } ' => array('type'=>'inline'),
+		'div.ajax-progress-throbber {display: none; }'=>array('type'=>'inline'),
+	);
+	$form['#attached']['js']=array(drupal_get_path('module', 'exam') .'/jquery.splendid.textchange.js');
+	$form['addframe']=array(
+		'#type' => 'fieldset',
+		'#title' => t('Add new place'),
+		'#collapsible' => TRUE,
+		'#collapsed' => TRUE,
+	);
+	$form['addframe']['name']=array(
+		'#type' => 'textfield',
+		'#title' => t('Place Name'),
+		'#size' => 20,
+		'#maxlength' => 10,
+		'#required' => TRUE,
+		'#prefix' => '<div class="inline-element-div">',
+		'#suffix' => '</div>',
+	);
+	$form['addframe']['location']=array(
+		'#type' => 'textfield',
+		'#title' => t('Place Location'),
+		'#size' => 70,
+		'#maxlength' => 60,
+		'#required' => TRUE,
+		'#prefix' => '<div class="inline-element-div">',
+		'#suffix' => '</div>',
+	);
+	$form['addframe']['admin']=array(
+		'#type' => 'textfield',
+		'#title' => t('IDCard Number of administrater'),
+		'#size' => 30,
+		'#maxlength' => 18,
+		'#required' => TRUE,
+		'#autocomplete_path' => 'exam/places/idcardnumber_autocompletion',
+		'#prefix' => '<div class="inline-element-div">',
+	);
+	$form['addframe']['adminusername']=array(
+		'#type' => 'item',
+		'#markup' => isset($form_state['values']['admin'])?_exam_username_from_idcard($form_state['values']['admin']):'',
+		'#prefix' => '<div id="usernamefromidcard" class="inline-element-div">',
+		'#suffix' => '</div></div>',
+	);
+	$form['addframe']['contact']=array(
+		'#type' => 'textfield',
+		'#title' => t('Contact information'),
+		'#size' => 70,
+		'#maxlength' => 60,
+		'#required' => TRUE,
+		'#prefix' => '<div class="inline-element-div">',
+		'#suffix' => '</div>',
+	);
+	$form['addframe']['submit']=array(
+		'#type' => 'submit',
+		'#value' => t('Save'),
+	);
+	return $form;
+}
+
+function _exam_username_from_idcard($idcard='') {
+	$rows=array();
+	$query=db_query('SELECT s.idcard_number, u.name, s.name as sname FROM {users} u INNER JOIN {students} s ON s.uid=u.uid '.
+		'WHERE s.idcard_number LIKE :idcardnumber ORDER BY s.idcard_number LIMIT 0,20',
+		array(':idcardnumber'=>db_like($idcard) . '%')
+	);
+	foreach($query as $r) {
+		$rows[$r->idcard_number]=t('!sname(!idcardnumber)', array('!idcardnumber'=>$r->idcard_number, '!sname'=>$r->sname));
+	}
+	drupal_json_output($rows);
+}
+
+function exam_places_add_form_validate($form, $form_state) {
+	if($GLOBALS['user']->uid==1) return;
+	if(!db_query('SELECT EXISTS(SELECT * FROM {students} WHERE idcard_number=:idcard)', array(':idcard'=>$form_state['values']['admin']))->fetchField())
+		form_set_error('admin', t('The specific user has not been registered.'));
+}
+
+function exam_places_add_form_submit($form, $form_state) {
+	$uid=(int)db_query('SELECT uid FROM {students} WHERE idcard_number=:idcard', array(':idcard'=>$form_state['values']['admin']))->fetchField();
+	$i=db_insert('places')->fields(array(
+		'name' => $form_state['values']['name'],
+		'location' => $form_state['values']['location'],
+		'uid' => $uid,
+		'contact' => $form_state['values']['contact'],
+	))->execute();
+	if($i) {
+		drupal_set_message(t('Place !name added.', array('!name'=>$form_state['values']['name'])));
+		watchdog('exam',
+			'Place !name added.', array(
+				'!name'=>$form_state['values']['name'],
+				),
+			WATCHDOG_INFO
+		);
+	}
+}
+
+function place_load($pid) {
+	return db_select('SELECT * FROM {places} WHERE pid=:pid',array(':pid'=>$pid))->fetchObject();
+}
+
+function exam_places_modify_form($form, $form_state, $place) {
+	return $form;
+}
+
+function exam_arrangement_form($form, $form_state) {
+	return $form;
 }
 
 function exam_user_update($edit, $account, $category) {
