@@ -1313,6 +1313,7 @@ function exam_places_modify_form_submit($form, &$form_state) {
 			'name' => $form_state['values']['name'],
 			'capacity' => $form_state['values']['capacity'],
 		))->execute();
+	drupal_set_message(t('Place !name modified.', array('!name'=>$form_state['storage']['place']->name)));
 	watchdog('exam',
 		'Place !name modified.', array(
 			'!name'=>$form_state['storage']['place']->name,
