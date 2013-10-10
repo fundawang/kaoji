@@ -195,6 +195,7 @@ function certificate_specification_form($form, $form_state) {
 	$form['name']=array(
 		'#type' => 'textfield',
 		'#title' => t('Specification Name'),
+		'#default_value' => isset($form_state['values']['name'])?$form_state['values']['name']:'',
 		'#required' => TRUE,
 		'#maxlength' => 50,
 		'#size' => 40,
@@ -249,8 +250,17 @@ function certificate_specification_form($form, $form_state) {
 }
 
 function certificate_specification_form_validate($form, $form_state) {
-	if($form_state['values']['series']=='0' && trim($form_state['values']['series_input'])==FALSE)
+	if($form_state['values']['series']=='0' && trim($form_state['values']['series_input'])==FALSE) {
 		form_set_error('series_input', t('Series name is required.'));
+		return;
+	}
+	$query=db_query('SELECT EXISTS(SELECT * FROM {certificates} WHERE series=:series AND name=:name)',
+		array(':series'=>$form_state['values']['series_input'], ':name' => $form_state['values']['name'])
+	);
+	if($query->fetchField()) {
+		form_set_error('name', t('This certificate already exists.'));
+	}
+
 }
 
 function certificate_specification_form_submit($form, $form_state) {
