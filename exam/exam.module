@@ -1361,7 +1361,7 @@ function exam_arrangement_form($form, $form_state) {
 	$rows=array();
 	foreach($dbo as $r) {
 		$co=certificate_operations_load($r->coid);
-		if($form['oselect']['#default_value']!='0' && $co->oid!=$form['oselect']['#default_value']) continue;
+		if(isset($form['oselect']) && $form['oselect']['#default_value']!='0' && $co->oid!=$form['oselect']['#default_value']) continue;
 		$rows[]=array(
 			$co->oname,
 			$co->cname,
