@@ -1329,21 +1329,31 @@ function exam_arrangement_form($form, $form_state) {
 		'div.ajax-progress-throbber {display: none; }'=>array('type'=>'inline'),
 	);
 	$query=db_query('SELECT o.* FROM {operations} o WHERE EXISTS('.
-		'SELECT * FROM {goings} g INNER JOIN {certificates_operations} co ON g.coid=co.coid '.
-		'WHERE co.oid=o.oid)');
+			'SELECT * FROM {goings} g INNER JOIN {certificates_operations} co ON g.coid=co.coid '.
+			'WHERE co.oid=o.oid) ORDER BY o.oid DESC');
 	if($query->rowCount()>1) {
-		$options=array('0' => t('All operation'));
+		$options=array('0' => t('All operations'));
 		foreach($query as $r)
 			$options[$r->oid]=$r->name;
 		$form['oselect']=array(
 			'#type' => 'select',
 			'#options' => $options,
 			'#title' => t('Select Operation'),
+			'#default_value' => isset($_SESSION['oselect'])?$_SESSION['oselect']:$r->oid,
+			'#prefix' => '<div class="inline-element-div">',
+		);
+		$form['orefresh']=array(
+			'#type' => 'submit',
+			'#value' => t('Refresh'),
+			'#limit_validation_errors' => array(array('oselect')),
+			'#submit' => array('exam_arrangement_form_orefresh_submit'),
+			'#suffix' => '</div>',
 		);
 		$curorg='';
 	}
 	if($query->rowCount()==1)
 		$curorg=$query->fetchObject()->name;
+	else $curorg=$form['oselect']['#options'][$form['oselect']['#default_value']];
 	$query='SELECT p.name as pname, g.* FROM {goings} g INNER JOIN {places} p ON g.pid=p.pid ';
 	if(!user_access('admin exam places'))
 		$query.='WHERE p.uid=:uid';
@@ -1351,6 +1361,7 @@ function exam_arrangement_form($form, $form_state) {
 	$rows=array();
 	foreach($dbo as $r) {
 		$co=certificate_operations_load($r->coid);
+		if($form['oselect']['#default_value']!='0' && $co->oid!=$form['oselect']['#default_value']) continue;
 		$rows[]=array(
 			$co->oname,
 			$co->cname,
@@ -1466,9 +1477,15 @@ function exam_arrangement_form($form, $form_state) {
 	return $form;
 }
 
+function exam_arrangement_form_orefresh_submit($form, &$form_state) {
+	if($form_state['values']['oselect'])
+		$_SESSION['oselect']=$form_state['values']['oselect'];
+	else unset($_SESSION['oselect']);
+}
+
 function exam_arrangement_form_add_going_submit($form, $form_state) {
 	if($form_state['values']['certificate']=='0')
-		$certificates=array_keys($form['addframe']['certificate']['options']);
+		$certificates=array_keys($form['addframe']['certificate']['#options']);
 	else
 		$certificates=array($form_state['values']['certificate']);
 	foreach($certificates as $certificate) {
