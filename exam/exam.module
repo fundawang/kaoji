@@ -93,7 +93,6 @@ function exam_menu() {
 		'type' => MENU_VISIBLE_IN_BREADCRUMB,
 		'title callback' => 'exam_places_modify_form_title',
 		'title arguments' => array(3),
-		'description' => "Manage the Places",
 		'page callback' => 'drupal_get_form',
 		'page arguments' => array('exam_places_modify_form', 3),
 		'weight' => 1,
@@ -109,6 +108,16 @@ function exam_menu() {
 		'weight' => 2,
 		'access callback' => 'user_access',
 		'access arguments'=> array('admin exam places'),
+	);
+	$items['exam/arrangement/modify/%going']=array(
+		'type' => MENU_VISIBLE_IN_BREADCRUMB,
+		'title callback' => 'exam_arrangement_modify_form_title',
+		'title arguments' => array(3),
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_arrangement_modify_form', 3),
+		'weight' => 1,
+		'access callback' => 'exam_arrangement_modify_form_access',
+		'access arguments'=> array(3),
 	);
 	$items['exam/scores']=array(
 		'title' => 'Result and Scores',
@@ -1354,6 +1363,11 @@ function exam_arrangement_form($form, $form_state) {
 	if($query->rowCount()==1)
 		$curorg=$query->fetchObject()->name;
 	else $curorg=$form['oselect']['#options'][$form['oselect']['#default_value']];
+	$query=db_query('SELECT * FROM {certificates}');
+	$certs=array();
+	foreach($query as $r) {
+		$certs[$r->cid]=$r->name;
+	}
 	$query='SELECT p.name as pname, g.* FROM {goings} g INNER JOIN {places} p ON g.pid=p.pid ';
 	if(!user_access('admin exam places'))
 		$query.='WHERE p.uid=:uid';
@@ -1362,11 +1376,26 @@ function exam_arrangement_form($form, $form_state) {
 	foreach($dbo as $r) {
 		$co=certificate_operations_load($r->coid);
 		if(isset($form['oselect']) && $form['oselect']['#default_value']!='0' && $co->oid!=$form['oselect']['#default_value']) continue;
+		$requirements=unserialize($r->requirements);
+		$reqtext=array();
+		$a=array();
+		for($i=1;$i<=3;$i++) {
+			for($j=1;$j<=3;$j++) {
+				if(isset($requirements[$i][$j]))
+					$reqtext[$i][$j]=$certs[$requirements[$i][$j]];
+			}
+			if(!empty($reqtext[$i]))
+				$a[]=implode('+', $reqtext[$i]);
+		}
+		if(count($a)>1)
+			$a='<ul><li>'.implode('</li><li>', $a).'</li></ul>';
+		else if(count($a)==1) $a=$a[0];
+		else $a='';
 		$rows[]=array(
 			$co->oname,
 			$co->cname,
 			$r->pname,
-			$r->requirements,
+			$a,
 			$r->status,
 			l(t('Modify'), 'exam/arrangement/modify/'.$r->gid),
 		);
@@ -1477,10 +1506,8 @@ function exam_arrangement_form($form, $form_state) {
 	return $form;
 }
 
-function exam_arrangement_form_orefresh_submit($form, &$form_state) {
-	if($form_state['values']['oselect'])
-		$_SESSION['oselect']=$form_state['values']['oselect'];
-	else unset($_SESSION['oselect']);
+function exam_arrangement_form_orefresh_submit($form, $form_state) {
+	$_SESSION['oselect']=$form_state['values']['oselect'];
 }
 
 function exam_arrangement_form_add_going_submit($form, $form_state) {
@@ -1512,6 +1539,114 @@ function _exam_arrangement_form_certificate_select_options($operation) {
 	foreach($query as $r)
 		$options[$r->cid]=sprintf('%s - %s', $r->series, $r->name);
 	return $options;
+}
+
+function going_load($gid) {
+	$r=db_query('SELECT * FROM {goings} WHERE gid=:gid', array(':gid'=>$gid))->fetchObject();
+	if($r) {
+		$r->requirements=unserialize($r->requirements);
+		$r->co=certificate_operations_load($r->coid);
+		$r->place=db_query('SELECT * FROM {places} WHERE pid=:pid', array(':pid'=>$r->pid))->fetchObject();
+	}
+	return $r;
+}
+
+function exam_arrangement_modify_form_title($going) {
+	return t('Modify going !cname on !oname in !place',	array(
+		'!cname' => $going->co->cname,
+		'!oname' => $going->co->oname,
+		'!place' => $going->place->name,
+	));
+}
+
+function exam_arrangement_modify_form_access($going) {
+	if(user_access('admin exam places')) return TRUE;
+	if(user_access('manage own places'))
+		return db_query('SELECT EXISTS(SELECT * FROM {places} WHERE uid=:uid)', array(':uid'=>$GLOBALS['user']->uid))->fetchField();
+	return FALSE;
+}
+
+function exam_arrangement_modify_form($form, &$form_state, $going) {
+	$form['#attached']['css']=array(
+		'.inline-element-div label, .inline-element-div div, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline'),
+		'div.ajax-progress-throbber {display: none; }'=>array('type'=>'inline'),
+	);
+	$form_state['storage']['going']=$going;
+	$form['operation']=array(
+		'#type' => 'item',
+		'#title' => t('Organization'),
+		'#markup' => $going->co->oname,
+	);
+	$form['certificate']=array(
+		'#type' => 'item',
+		'#title' => t('Target Certificate'),
+		'#markup' => sprintf('%s %s', $going->co->series, $going->co->cname),
+	);
+	$form['description']=array(
+		'#type' => 'textfield',
+		'#title' => t('Description shown to the student'),
+		'#default_value' => $going->description,
+	);
+	$form['isconditioned']=array(
+		'#type' => 'radios',
+		'#title' => t('Signup condition'),
+		'#required' => TRUE,
+		'#options' => array(
+			'0' => t('Every student can signup for this certificate'),
+			'1' => t('Only students have one of following certificates combines may signup for this certificate'),
+		),
+		'#default_value' => (int)!empty($going->requirements),
+	);
+	$query=db_query('SELECT * FROM {certificates} WHERE cid <> :cid', array(':cid'=>$going->co->cid));
+	$certs=array('0'=> t('Not required'));
+	foreach($query as $r) {
+		$certs[$r->cid]=sprintf('%s %s', $r->series, $r->name);
+	}
+	for($i=1; $i<=3; $i++) {
+		$form['condition']['condition'.$i]=array(
+			'#type' => 'fieldset',
+			'#title' => t('Certificate Requirement Combine !i', array('!i'=>$i)),
+			'#description' => t('User may signup for !cname if he has all the certificates listed in this combine.', array('!cname'=>$going->co->cname)),
+			'#collapsible' => TRUE,
+			'#states' => array(
+				'visible' => array(
+					':input[name="isconditioned"]' => array('value' => '1'),
+				),
+			),
+		);
+		for($j=1; $j<=3; $j++) {
+			$form['condition']['condition'.$i]['cert'.$i.$j]=array(
+				'#type' => 'select',
+				'#title' => t('Certificate !j of combine !i', array('!i'=>$i, '!j'=>$j)),
+				'#options' => $certs,
+				'#default_value' => isset($going->requirements[$i][$j])?$going->requirements[$i][$j]:0,
+				'#prefix' => '<div class="inline-element-div">',
+				'#suffix' => '</div>',
+			);
+		}
+
+	}
+	$form['save']=array(
+		'#type' => 'submit',
+		'#value' => t('Save'),
+	);
+	return $form;
+}
+
+function exam_arrangement_modify_form_submit($form, $form_state) {
+	$requirements=array();
+	for($i=1;$i<=3;$i++) {
+		for($j=1;$j<=3;$j++) {
+			if($form_state['values']['cert'.$i.$j])
+				$requirements[$i][$j]=$form_state['values']['cert'.$i.$j];
+		}
+	}
+	if(!empty($requirements)) $requirements=serialize($requirements);
+	else $requirements=NULL;
+	db_update('goings')->condition('gid', $form_state['storage']['going']->gid)->fields(array(
+		'description' => $form_state['values']['description'],
+		'requirements' => $requirements,
+	))->execute();
 }
 
 function exam_user_update($edit, $account, $category) {
