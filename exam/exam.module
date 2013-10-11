@@ -1692,7 +1692,9 @@ function exam_user_login($edit, $account) {
 			$c++;
 		}
 	}
-	if($c)
+	if($c) {
+		drupal_set_message(t('You have !num new scores, click !url to view.',
+			array('!num'=>$c, '!url'=>l(t('here'), 'user/scores'))));
 		watchdog('exam',
 			'!user claimed !num exam scores automatically.', array(
 				'!user' => $name,
@@ -1700,6 +1702,7 @@ function exam_user_login($edit, $account) {
 				),
 			WATCHDOG_INFO
 		);
+	}
 }
 
 function exam_user_delete($user) {
