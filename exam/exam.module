@@ -1695,6 +1695,7 @@ function exam_user_login($edit, $account) {
 	if($c)
 		watchdog('exam',
 			'!user claimed !num exam scores automatically.', array(
+				'!user' => $name,
 				'!num'=>$c,
 				),
 			WATCHDOG_INFO
