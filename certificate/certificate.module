@@ -255,8 +255,9 @@ function certificate_specification_form_validate($form, $form_state) {
 		form_set_error('series_input', t('Series name is required.'));
 		return;
 	}
-	$query=db_query('SELECT EXISTS(SELECT * FROM {certificates} WHERE series=:series AND name=:name)',
-		array(':series'=>$form_state['values']['series_input'], ':name' => $form_state['values']['name'])
+	$query=db_query('SELECT EXISTS(SELECT * FROM {certificates} WHERE series=:series AND name=:name AND cid <> :cid)',
+		array(':series'=>$form_state['values']['series_input'], ':name' => $form_state['values']['name'],
+			':cid'=> isset($form_state['storage']['cid'])?$form_state['storage']['cid']:0)
 	);
 	if($form_state['triggering_element']['#name']!='cancel' && $query->fetchField()) {
 		form_set_error('name', t('This certificate already exists.'));
