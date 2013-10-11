@@ -99,7 +99,6 @@ function student_help($path, $arg) {
 function student_menu() {
 	$items=array();
 	$items['user/%user/%/picture.jpg'] = array(
-		'title' => 'Fetch picture of student',
 		'page callback' => 'student_picture',
 		'page arguments' => array(1,2),
 		'type' => MENU_CALLBACK,
