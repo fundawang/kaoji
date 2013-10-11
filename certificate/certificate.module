@@ -224,6 +224,7 @@ function certificate_specification_form($form, $form_state) {
 			'#type' => 'submit',
 			'#name' => 'cancel',
 			'#value' => t('Cancel'),
+			'#limit_validation_errors' => array(),
 		);
 
 	$form['existingnotice']=array(
