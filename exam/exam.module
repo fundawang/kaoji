@@ -740,7 +740,7 @@ function exam_scores_query_form($form, $form_state) {
 
 	if(empty($_SESSION['coid']) || empty($_SESSION['coid']['cid']) || empty($_SESSION['coid']['oid'])) return $form;
 	$header=array(
-		array('data'=>t('Real Name'), 'field'=>'uid', 'sort'=>'desc'),
+		array('data'=>t('Real Name'), 'field'=>'unamegbk'),
 		array('data'=>t('IDCard Number'), 'field'=>'idcard_number'),
 		array('data'=>t('Ticket Number'), 'field'=>'ticket_number'),
 		array('data'=>t('Score')),
@@ -777,6 +777,7 @@ function exam_scores_query_form($form, $form_state) {
 		$uquery->condition('st.result',$_SESSION['citera']['result']);
 	$query->union($uquery, 'UNION ALL');
 	$rquery=db_select($query,'t')->fields('t');
+	$rquery->addExpression('CONVERT(CONVERT(name, char) USING gbk )', 'unamegbk');
 	$totalnum=$rquery->countQuery()->execute()->fetchField();
 	$rquery=$rquery->extend('TableSort')->orderByHeader($header)->orderBy('idcard_number')->extend('PagerDefault')->limit(20);
 	$rdbo=$rquery->execute();
