@@ -1665,7 +1665,7 @@ function exam_user_login($edit, $account) {
 			$exname=$edit['exname'];
 		else
 			$exname=$edit['name'];
-	else $exname=empty($s->exname)?$s->name:$name;
+	else $exname=empty($s->exname)?$s->name:$s->exname;
 	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)', array(
 		':idcardnumber'=>$idcardnumber,
 		':name'=>$name,
