@@ -1657,7 +1657,7 @@ function exam_user_update($edit, $account, $category) {
 
 function exam_user_login($edit, $account) {
 	$s=student_load($account);
-	if(empty($s)) return;
+	if(empty($s) && !isset($edit['idnumber'])) return;
 	$idcardnumber=isset($edit['idnumber'])?$edit['idnumber']:$s->idcard_number;
 	$name=isset($edit['truename'])?$edit['truename']:$s->name;
 	if(isset($edit['haveexname']))
@@ -1665,7 +1665,7 @@ function exam_user_login($edit, $account) {
 			$exname=$edit['exname'];
 		else
 			$exname=$edit['name'];
-	else $exname=empty($s->exname)?$s->name:$s->exname;
+	else $exname=empty($s->exname)?$s->name:$name;
 	$query=db_query('SELECT * FROM {scores_temp} WHERE idcard_number=:idcardnumber AND (name=:name or name=:exname)', array(
 		':idcardnumber'=>$idcardnumber,
 		':name'=>$name,
@@ -1673,15 +1673,15 @@ function exam_user_login($edit, $account) {
 	));
 	$c=0;
 	foreach($query as $r) {
-		$i=db_merge('signup')->key(array('uid'=>$s->uid, 'coid'=>$r->coid))->updateFields(array(
-			'uid' => $s->uid,
+		$i=db_merge('signup')->key(array('uid'=>$account->uid, 'coid'=>$r->coid))->updateFields(array(
+			'uid' => $account->uid,
 			'coid' => $r->coid,
 			'score' => $r->score,
 			'result' => $r->result,
 			'status' => exam_signup_status_FINISHED
 		))->insertFields(array(
 			'ticket_number'=>$r->ticket_number,
-			'uid' => $s->uid,
+			'uid' => $account->uid,
 			'coid' => $r->coid,
 			'score' => $r->score,
 			'result' => $r->result,
