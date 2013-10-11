@@ -14,7 +14,7 @@
  * Implementation of hook_username_alter().
  */
 function certificate_username_alter(&$name, $account) {
-	if(user_access('admin certificates', $account))
+	if($account->uid !=1 && isset($account->roles) && user_access('admin certificates', $account))
 		$name=t('Administrator');
 }
 
