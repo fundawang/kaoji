@@ -9,6 +9,15 @@
  * Defines the basic information of certificate.
  */
  
+
+/**
+ * Implementation of hook_username_alter().
+ */
+function certificate_username_alter(&$name, $account) {
+	if(user_access('admin certificates', $account))
+		$name=t('Administrator');
+}
+
 /**
  * Implementation of hook_help().
  */
