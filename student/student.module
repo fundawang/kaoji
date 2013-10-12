@@ -293,6 +293,7 @@ function student_picture($account, $rev) {
 		$fname=sprintf('student_photos_%s_%s', $account->uid, $rev);
 		$img_tmp=$kv->get($fname);
 		if(!$img_tmp) return NULL;
+		unset($kv);
 	}
 	else {
 		$query=db_query('SELECT photo FROM {photos} where uid=:uid AND photoid=:rev',array(':uid'=>$account->uid, ':rev'=>$rev));
@@ -300,6 +301,7 @@ function student_picture($account, $rev) {
 		if(!$img_tmp) return NULL;
 	}
 	$img=imagecreatefromstring(base64_decode($img_tmp));
+	unset($img_tmp);
 
 	drupal_add_http_header('Content-type', 'image/jpg; charset=binary', TRUE);
 	drupal_add_http_header('Content-Transfer-Encoding', 'binary', TRUE);
@@ -312,6 +314,7 @@ function student_picture($account, $rev) {
 	drupal_add_http_header('Expires', gmdate('D, d M Y H:i:s', time()+$expires) . ' GMT', TRUE);
 	imagejpeg($img, NULL, 100);
 	imagedestroy($img);
+	unset($img);
 }
 
 function student_user_account_form_validate($form, $form_state) {
@@ -408,12 +411,14 @@ function student_user_account_form_save($form, &$form_state) {
 				$kv->init();
 				$fname=sprintf('student_photos_%s_%s', $user->uid, $photoid);
 				$kv->set($fname, base64_encode($data));
+				unset($kv);
 			} else {
 				$photoid=db_insert('photos')->fields(array(
 					'uid' => $user->uid,
 					'photo' => base64_encode($data),
 				))->execute();
 			}
+			unset($data);
 			db_update('students')->condition('uid', $user->uid)->fields(array(
 				'picture' => $photoid
 			))->execute();
@@ -610,6 +615,7 @@ function student_load($user) {
 				$kv = new SaeKV();
 				$kv->init();
 				$obj->rawpicture=$kv->get($fname);
+				unset($kv);
 			} else {
 				$obj->rawpicture=db_query('SELECT photo FROM {photos} WHERE uid=:uid AND photoid=:rev', array(':uid'=>$user->uid, ':rev'=>$obj->picture))->fetchField();
 			}
