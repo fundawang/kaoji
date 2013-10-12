@@ -397,6 +397,7 @@ function student_user_account_form_save($form, &$form_state) {
 			else
 				$newfile=$file->uri.'.jpg';
 			image_save($image, $newfile);
+			unset($image);
 			$data=file_get_contents($newfile);
 			file_unmanaged_delete($newfile);
 			if(interface_exists('SaeInterface')) {
