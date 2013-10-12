@@ -1238,6 +1238,16 @@ function exam_places_modify_form($form, &$form_state, $place) {
 		'#required' => TRUE,
 		'#default_value' => $place->location,
 	);
+	$admin=student_load($place->uid);
+	$form['admin']=array(
+		'#type' => 'textfield',
+		'#title' => t('IDCard Number of administrater'),
+		'#size' => 30,
+		'#maxlength' => 18,
+		'#required' => TRUE,
+		'#autocomplete_path' => 'exam/places/idcardnumber_autocompletion',
+		'#default_value' => $admin?$admin->idcard_number:'',
+	);
 	$form['contact']=array(
 		'#type' => 'textfield',
 		'#title' => t('Contact information'),
@@ -1313,11 +1323,15 @@ function exam_places_modify_form_validate($form, $form_state) {
 		form_set_error('capacity',t('!name field must be a interger.',array('!name'=>$form['room']['capacity']['#title'])));
 	if($form_state['values']['addroom'] && (int)($form_state['values']['capacity']) <=0 )
 		form_set_error('capacity',t('!name field must be a interger.',array('!name'=>$form['room']['capacity']['#title'])));
+	if(!db_query('SELECT EXISTS(SELECT * FROM {students} WHERE idcard_number=:idcard)', array(':idcard'=>$form_state['values']['admin']))->fetchField())
+		form_set_error('admin', t('The specific user has not been registered.'));
 }
 
 function exam_places_modify_form_submit($form, &$form_state) {
+	$uid=(int)db_query('SELECT uid FROM {students} WHERE idcard_number=:idcard', array(':idcard'=>$form_state['values']['admin']))->fetchField();
 	db_update('places')->condition('pid', $form_state['storage']['place']->pid)->fields(array(
 		'location' => $form_state['values']['location'],
+		'uid' => $uid,
 		'contact' => $form_state['values']['contact'],
 	))->execute();
 	if($form_state['values']['addroom'])
