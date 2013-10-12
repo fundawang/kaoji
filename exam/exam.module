@@ -1039,13 +1039,16 @@ function exam_user_scores_report_access($sid) {
 function exam_user_scores_report($sid) {
 	drupal_add_css(drupal_get_path('module', 'exam') .'/exam.report.all.css', array('media'=>'all'));
 	drupal_add_css(drupal_get_path('module', 'exam') .'/exam.report.print.css', array('media'=>'print'));
-	drupal_add_js(
-		'jQuery(document).ready(function(){'.
-			'window.print();'.
-			'});'.
-			'',
-		'inline'
-	);
+	if(preg_match('/(?i)msie [1-7]\\./',$_SERVER['HTTP_USER_AGENT']) && !preg_match('/(?i)msie [8-9]\\./',$_SERVER['HTTP_USER_AGENT'])) {
+		drupal_add_js(
+			'jQuery(document).ready(function(){'.
+				'alert("'.t('The browser you are using is too old. \nFor better printing, IE8+ or dualcore browsers with Webkit core are suggested.').'");'.
+				'window.print();'.
+				'});'.
+				'',
+			'inline'
+		);
+	}
 	$s=student_load($GLOBALS['user']);
 	$s->idcard_number=substr_replace($s->idcard_number, '*', 3, strlen($s->idcard_number)-6);
 	$sg=db_query('SELECT * FROM {signup} WHERE sid=:sid', array(':sid'=>$sid))->fetchObject();
