@@ -698,6 +698,19 @@ function certificate_operations_form_create_submit($form, &$form_state) {
 	$form_state['rebuild']=TRUE;
 }
 
+/**
+ * Implementation of hook_charge_accounts().
+ */
+function certificate_charge_accounts() {
+	$query=db_query('SELECT * FROM {certificates}');
+	$rows=array();
+	foreach($query as $r) {
+		$rows['certificate'.$r->cid]=sprintf('%s %s', $r->series, $r->name);
+	}
+
+	return $rows;
+}
+
 function certificate_operations_load($cid, $oid=NULL) {
 	if(!empty($oid))
 		$query=db_query('SELECT co.*, c.name AS cname, o.name as oname, c.series FROM {certificates_operations} co '.
