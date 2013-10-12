@@ -935,7 +935,7 @@ function exam_user_scores() {
 		'.inline-element-div label, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline;}',
 		'inline'
 	);
-	drupal_add_js(drupal_get_path('module', 'exam') .'/jquery.cookie.js');
+	drupal_add_library('system', 'jquery.cookie');
 	$query=db_query('SELECT o.oid, o.name AS oname FROM {operations} o WHERE EXISTS('.
 		'SELECT * FROM {signup} s INNER JOIN {certificates_operations} co ON s.coid=co.coid '.
 		'WHERE s.uid=:uid AND s.status=:status AND co.oid=o.oid) ORDER BY oid DESC',
