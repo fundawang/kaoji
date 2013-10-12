@@ -18,6 +18,10 @@ define('exam_signup_status_FINISHED_BATCH', 4);
 define('exam_signup_result_ABSENT', 0);
 define('exam_signup_result_FAILED', 1);
 define('exam_signup_result_PASSED', 2);
+
+define('exam_signup_going_CLOSE', 0);
+define('exam_signup_going_OPEN', 1);
+define('exam_signup_going_ENDED', 2);
  
 /**
  * Implementation of hook_help().
@@ -1358,7 +1362,7 @@ function exam_places_modify_form_submit($form, &$form_state) {
 	$form_state['rebuild']=TRUE;
 }
 
-function exam_arrangement_form($form, $form_state) {
+function exam_arrangement_form($form, &$form_state) {
 	$form['#attached']['css']=array(
 		'.inline-element-div label, .inline-element-div div, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline'),
 		'div.ajax-progress-throbber {display: none; }'=>array('type'=>'inline'),
@@ -1422,15 +1426,15 @@ function exam_arrangement_form($form, $form_state) {
 			$co->cname,
 			$r->pname,
 			$a,
-			$r->status,
-			l(t('Modify'), 'exam/arrangement/modify/'.$r->gid),
+			_exam_going_status_to_text($r->status),
+			$r->status==exam_signup_going_CLOSE?l(t('Modify'), 'exam/arrangement/modify/'.$r->gid):l(t('Review Signup'), 'exam/arrangement/list/'.$r->gid),
 		);
 	}
 	if(count($rows)) {
 		$header=array(
 			t('Organization'),
 			t('Certificate'),
-			t('Exam Place'),
+			t('Place Name'),
 			t('Requirements for application'),
 			t('Status'),
 			t('Operation'),
@@ -1567,6 +1571,15 @@ function _exam_arrangement_form_certificate_select_options($operation) {
 	return $options;
 }
 
+function _exam_going_status_to_text($status) {
+	$result=array(
+		exam_signup_going_CLOSE => t('Not yet opened'),
+		exam_signup_going_OPEN => t('Open for signup'),
+		exam_signup_going_ENDED => t('Signup ended'),
+	);
+	return $result[$status];
+}
+
 function going_load($gid) {
 	$r=db_query('SELECT * FROM {goings} WHERE gid=:gid', array(':gid'=>$gid))->fetchObject();
 	if($r) {
@@ -1578,11 +1591,18 @@ function going_load($gid) {
 }
 
 function exam_arrangement_modify_form_title($going) {
-	return t('Modify going !cname on !oname in !place',	array(
-		'!cname' => $going->co->cname,
-		'!oname' => $going->co->oname,
-		'!place' => $going->place->name,
-	));
+	if($going->status==exam_signup_going_CLOSE) 
+		return t('Modify going !cname on !oname in !place',	array(
+			'!cname' => $going->co->cname,
+			'!oname' => $going->co->oname,
+			'!place' => $going->place->name,
+		));
+	else
+		return t('View going !cname on !oname in !place',	array(
+			'!cname' => $going->co->cname,
+			'!oname' => $going->co->oname,
+			'!place' => $going->place->name,
+		));
 }
 
 function exam_arrangement_modify_form_access($going) {
@@ -1593,6 +1613,8 @@ function exam_arrangement_modify_form_access($going) {
 }
 
 function exam_arrangement_modify_form($form, &$form_state, $going) {
+	$form_state['storage']['charge']['module']='certificate';
+	$form_state['storage']['charge']['account']='certificate'.$going->co->cid;
 	$form['#attached']['css']=array(
 		'.inline-element-div label, .inline-element-div div, .inline-element-div select, .inline-element-div input, .inline-element-div div.form-item { display: inline; }' => array('type'=>'inline'),
 		'div.ajax-progress-throbber {display: none; }'=>array('type'=>'inline'),
@@ -1608,10 +1630,14 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		'#title' => t('Target Certificate'),
 		'#markup' => sprintf('%s %s', $going->co->series, $going->co->cname),
 	);
+	$form['chargeinfo']=array(
+		'#type' => 'item',
+	);
 	$form['description']=array(
 		'#type' => 'textfield',
 		'#title' => t('Description shown to the student'),
 		'#default_value' => $going->description,
+		'#disabled' => $going->status!=exam_signup_going_CLOSE,
 	);
 	$form['isconditioned']=array(
 		'#type' => 'radios',
@@ -1622,6 +1648,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 			'1' => t('Only students have one of following certificates combines may signup for this certificate'),
 		),
 		'#default_value' => (int)!empty($going->requirements),
+		'#disabled' => $going->status!=exam_signup_going_CLOSE,
 	);
 	$query=db_query('SELECT * FROM {certificates} WHERE cid <> :cid', array(':cid'=>$going->co->cid));
 	$certs=array('0'=> t('Not required'));
@@ -1648,18 +1675,27 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 				'#default_value' => isset($going->requirements[$i][$j])?$going->requirements[$i][$j]:0,
 				'#prefix' => '<div class="inline-element-div">',
 				'#suffix' => '</div>',
+				'#disabled' => $going->status!=exam_signup_going_CLOSE,
 			);
 		}
 
 	}
-	$form['save']=array(
-		'#type' => 'submit',
-		'#value' => t('Save'),
-	);
+	if($going->status == exam_signup_going_CLOSE) {
+		$form['save']=array(
+			'#type' => 'submit',
+			'#name' => 'save',
+			'#value' => t('Save'),
+		);
+		$form['saveandopen']=array(
+			'#type' => 'submit',
+			'#name' => 'saveandopen',
+			'#value' => t('Save and Open it for students to signup'),
+		);
+	}
 	return $form;
 }
 
-function exam_arrangement_modify_form_submit($form, $form_state) {
+function exam_arrangement_modify_form_submit($form, &$form_state) {
 	$requirements=array();
 	for($i=1;$i<=3;$i++) {
 		for($j=1;$j<=3;$j++) {
@@ -1673,6 +1709,35 @@ function exam_arrangement_modify_form_submit($form, $form_state) {
 		'description' => $form_state['values']['description'],
 		'requirements' => $requirements,
 	))->execute();
+	if($form_state['triggering_element']['#name']=='saveandopen') {
+		db_update('goings')->condition('gid', $form_state['storage']['going']->gid)->fields(array(
+			'status' => exam_signup_going_OPEN,
+		))->execute();
+		drupal_set_message(t('Going !cname in !place saved and opend.',	array(
+			'!cname'=>$form_state['storage']['going']->co->cname,
+			'!place'=>$form_state['storage']['going']->place->name,
+		)));
+		watchdog('exam',
+			'Going !cname in !place saved and opend.', array(
+				'!cname'=>$form_state['storage']['going']->co->cname,
+				'!place'=>$form_state['storage']['going']->place->name,
+				),
+			WATCHDOG_INFO
+		);
+	} else {
+		drupal_set_message(t('Going !cname in !place saved.',	array(
+			'!cname'=>$form_state['storage']['going']->co->cname,
+			'!place'=>$form_state['storage']['going']->place->name,
+		)));
+		watchdog('exam',
+			'Going !cname in !place saved.', array(
+				'!cname'=>$form_state['storage']['going']->co->cname,
+				'!place'=>$form_state['storage']['going']->place->name,
+				),
+			WATCHDOG_INFO
+		);
+	}
+	$form_state['redirect']='exam/arrangement';
 }
 
 function exam_user_update($edit, $account, $category) {
