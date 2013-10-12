@@ -1048,6 +1048,14 @@ function exam_user_scores_report($sid) {
 				'',
 			'inline'
 		);
+	} else {
+		drupal_add_js(
+			'jQuery(document).ready(function(){'.
+				'window.print();'.
+				'});'.
+				'',
+			'inline'
+		);
 	}
 	$s=student_load($GLOBALS['user']);
 	$s->idcard_number=substr_replace($s->idcard_number, '*', 3, strlen($s->idcard_number)-6);
