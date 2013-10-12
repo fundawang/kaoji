@@ -189,7 +189,7 @@ function charge_fee($form, &$form_state) {
 				'#description' => t($value),
 				'#required' => TRUE,
 				'#size' => 10,
-				'#default_value' => db_query('SELECT amount FROM {charging_accounts} WHERE module=:module AND account=:account',
+				'#default_value' => (int)db_query('SELECT amount FROM {charging_accounts} WHERE module=:module AND account=:account',
 					array(':module'=>$module, ':account'=>$key))->fetchField(),
 				'#maxlength' => 10,
 				'#attributes' => array('class'=>array('numeric'), 'style'=>array('text-align: right;')),
@@ -232,7 +232,6 @@ function theme_charge_fee($variables) {
 function charge_fee_validate($form, $form_state) {
 	foreach($form_state['values'] as $key => $value) {
 		if(isset($form[$key]['#type']) && $form[$key]['#type']=='textfield') {
-			var_dump($value);
 			if(!preg_match('/^[0-9]+$/',$value))
 				form_set_error($key, t('!field is not a valid integer value.',array('!field'=>$form[$key]['#description'])));
 		}
@@ -259,6 +258,22 @@ function charge_form_cert_issue_exchange_rolls_form_alter(&$form, &$form_state) 
 	);
 	if(user_access('administer charging'))
 		$form['addrolls']['#description'].=l(t('Modify?'),'charge/fee');
+}
+
+function charge_form_exam_arrangement_modify_form_alter(&$form, &$form_state) {
+	$amount=db_query('SELECT amount FROM {charging_accounts} WHERE module=:module AND account=:account',
+		array(':module'=>$form_state['storage']['charge']['module'], ':account' => $form_state['storage']['charge']['account'])
+	)->fetchField();
+	$form['chargeinfo']=array(
+		'#type' => 'item',
+		'#title' => t('Charging amount'),
+		'#markup' => '&#165; '.number_format($amount),
+	);
+	if(empty($amount))
+		$form['chargeinfo']['#markup']='<span style="color: red; font-weight: bold;">'.$form['chargeinfo']['#markup'].'</span>';
+	if(user_access('administer charging'))
+		$form['chargeinfo']['#markup'].='&nbsp;'.l(t('Modify?'),'charge/fee');
+
 }
 
 function charge_user_access() {
