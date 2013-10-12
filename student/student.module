@@ -556,7 +556,7 @@ function student_form_user_pass_submit($form, &$form_state) {
 
 	watchdog('user',
 		'The password of !name was resetted.', array(
-			'!name'=>$user->name,
+			'!name'=>$account->name,
 			),
 		WATCHDOG_INFO
 	);
