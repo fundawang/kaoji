@@ -635,8 +635,11 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 
 function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
 	$file=file_load($form_state['storage']['fid']);
-	$wrapper = file_stream_wrapper_get_instance_by_uri($file->uri);
-	$uri = $wrapper->getDirectoryPath() . "/" . file_uri_target($file->uri);
+	$uri=drupal_realpath($file->uri);
+	if(interface_exists('SaeInterface')) {
+		file_put_contents( SAE_TMP_PATH . $file->filename, file_get_contents($uri));
+		$uri=SAE_TMP_PATH . $file->filename;
+	}
 	$format=PHPExcel_IOFactory::identify($uri);
 	$objReader = PHPExcel_IOFactory::createReader($format);
 	$objReader->setReadDataOnly(true);
@@ -720,6 +723,9 @@ function cert_issue_massiveupload_form_step2_submit($form, &$form_state) {
 	$objPHPExcel->disconnectWorksheets();
 	unset($objPHPExcel);
 	unset($objReader);
+	if(interface_exists('SaeInterface')) {
+		file_unmanaged_delete($uri);
+	}
 	$form_state['rebuild']=TRUE;
 	unset($form_state['storage']['fid']);
 	$form_state['storage']['step']=1;
