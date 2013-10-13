@@ -1740,6 +1740,73 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 	$form_state['redirect']='exam/arrangement';
 }
 
+function charge_form_cert_issue_massiveupload_form_alter(&$form, &$form_state) {
+	if($form_state['storage']['step']==2)
+		$form['#validate'][]='charge_form_cert_issue_massiveupload_form_validate';
+}
+
+function charge_form_cert_issue_massiveupload_form_validate(&$form, &$form_state) {
+	if(!$form_state['values']['certid'] || !$form_state['values']['name'] || !$form_state['values']['gender']
+		|| !$form_state['values']['birthdate'] || !$form_state['values']['idcard_type']
+		|| !$form_state['values']['idcardnumber']) return;
+	$file=file_load($form_state['storage']['fid']);
+	$uri=drupal_realpath($file->uri);
+	if(defined('SAE_TMP_PATH')) {
+		file_put_contents( SAE_TMP_PATH . $file->filename, file_get_contents($uri));
+		$uri=SAE_TMP_PATH . $file->filename;
+	}
+	$format=PHPExcel_IOFactory::identify($uri);
+	$objReader = PHPExcel_IOFactory::createReader($format);
+	$objReader->setReadDataOnly(true);
+	$objPHPExcel = $objReader->load($uri);
+	$objWorksheet = $objPHPExcel->getActiveSheet();
+	$row=$form_state['values']['beginrow'];
+	$max_rows=$objWorksheet->getHighestRow();
+	do {
+		$idcardnumber=strtoupper(trim($objWorksheet->getCell($form_state['values']['idcardnumber'].$row)->getCalculatedValue()));
+		$name=trim($objWorksheet->getCell($form_state['values']['name'].$row)->getCalculatedValue());
+		$query=db_query('SELECT EXISTS('.
+			'SELECT * FROM {scores_temp} WHERE coid=:coid AND idcard_number=:idcardnumber AND name <> :name)',
+			array(':coid' => $form_state['storage']['coid'],
+				':idcardnumber' => $idcardnumber,
+				':name' => $name,
+			)
+		);
+		if($query->fetchField()) {
+			form_set_error('idcardnumber',
+				t('!cord: The idcard number !val does not match what the you have uploaded for scores.',
+					array('!cord'=>$form_state['values']['idcardnumber'].$row, '!val' => $idcardnumber)
+				)
+			);
+		}
+
+		$query=db_query('SELECT EXISTS('.
+			'SELECT sg.result FROM {students} s INNER JOIN {signup} sg ON s.uid=sg.uid AND sg.coid=:coid WHERE sg.result <> :status '.
+			'UNION '.
+			'SELECT st.result FROM {scores_temp} st WHERE st.coid=:coid AND st.idcard_number=:idcardnumber AND st.result <> :status)',
+			array(':coid' => $form_state['storage']['coid'],
+				':idcardnumber' => $idcardnumber,
+				':status' => exam_signup_result_PASSED,
+			)
+		);
+		if($query->fetchField()) {
+			form_set_error('idcardnumber',
+				t('!cord: The user did not pass the selected certificate test.',
+					array('!cord'=>$form_state['values']['idcardnumber'].$row)
+				)
+			);
+		}
+
+	} while ($row++<$max_rows);
+	$objWorksheet->disconnectCells();
+	$objPHPExcel->disconnectWorksheets();
+	unset($objPHPExcel);
+	unset($objReader);
+	if(interface_exists('SaeInterface')) {
+		file_unmanaged_delete($uri);
+	}
+}
+
 function exam_user_update($edit, $account, $category) {
 	if($category=='account')
 		exam_user_login($edit, $account);
