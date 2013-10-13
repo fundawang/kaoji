@@ -625,7 +625,7 @@ function student_load($user) {
 	else return FALSE;
 }
 
-function student_delete($user) {
+function student_user_delete($user) {
 	db_delete('photos')->condition('uid',$user->uid)->execute();
 	db_delete('students')->condition('uid',$user->uid)->execute();
 }
