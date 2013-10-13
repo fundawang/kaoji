@@ -609,7 +609,7 @@ function cert_issue_massiveupload_form_step2_validate($form, $form_state) {
 					array(':idcard_type'=>$idcard_type,':idcard_number'=>$idcardnumber))->fetchObject();
 				if(!$student) break;
 				if(($student->name != $name && $student->exname != $name) || ($student_gender != $gender)) {
-					$form_set_error('idcardnumber',
+					form_set_error('idcardnumber',
 						t('!cord: The idcard number !val does not match what the users have input (!name, !gender).',
 							array('!cord'=>$form_state['values']['idcardnumber'].$row, '!val' => $idcardnumber,
 								'!name'=>empty($student->exname)?$student->name:(sprintf('%s (%s)', $student->name, $student->exname))
