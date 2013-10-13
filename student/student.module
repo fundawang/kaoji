@@ -142,7 +142,8 @@ function student_form_user_profile_form_alter(&$form, $form_state) {
 	}
 	if(isset($form['account']['mail']) && $form['#user']->uid <> 1)
 		$form['account']['mail']['#type']='hidden';
-	if(!user_access('administer users', $form['#user']))
+	if($GLOBALS['user']->uid==1) return;
+	if($GLOBALS['user']->uid == $form['#user']->uid || user_access('administer users'))
 		student_user_account_form($form, $form_state);
 }
 
