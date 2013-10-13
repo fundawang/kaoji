@@ -424,10 +424,10 @@ function student_user_account_form_save($form, &$form_state) {
 				'picture' => $photoid
 			))->execute();
 	}
-	$form_state['redirect']=sprintf('user/%d', $user->uid);
+	if(empty($form_state['redirect']))
+		$form_state['redirect']=sprintf('user/%d', $user->uid);
 	watchdog('user',
-		'!user modified the information of !name !truename.', array(
-			'!user'=>$GLOBALS['user']->name,
+		'Modified the information of !name !truename.', array(
 			'!name'=>$user->name,
 			'!truename'=>trim($form_state['values']['truename'])
 			),
