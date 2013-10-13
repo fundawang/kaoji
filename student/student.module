@@ -87,13 +87,6 @@ function _student_is_idcardn_validate($idcardn) {
  */
  
 /**
- * Implementation of hook_help().
- */
-function student_help($path, $arg) {
-}
-
-
-/**
  * Implementation of hook_menu().
  */
 function student_menu() {
