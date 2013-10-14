@@ -1540,7 +1540,7 @@ function cert_issue_massiveupload_query_form($form, $form_state) {
 		}
 		if($i>10) {
 			$rows[]=array(
-				array('data'=>t('There are !num more certificates matched. Please consider doing a more strict search.', array('!num'=>$i-10)), 'colspan'=>5),
+				array('data'=>t('There are !num more certificates matched. Please consider doing a more strict search.', array('!num'=>$i-10)), 'colspan'=>6),
 			);
 		}
 		$header=array(
