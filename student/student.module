@@ -594,6 +594,10 @@ function student_user_view($user, $view_mode, $langcode) {
 		'#title' => t('Gender'),
 		'#markup' => $student->gender==1?t('Male'):t('Female'),
 	);
+	if(user_access('access user profiles'))
+		$user->content['pi']['name']['#markup'] .= sprintf(' (%s)', 
+			substr_replace($student->idcard_number, str_repeat('*', strlen($student->idcard_number)-6), 3, -3)
+		);
 }
 
 function student_user_view_alter(&$build) {
