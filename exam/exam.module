@@ -1824,6 +1824,11 @@ function exam_user_update($edit, $account, $category) {
 		exam_user_login($edit, $account);
 }
 
+function exam_student_disable_modify($student) {
+	if(db_query('SELECT EXISTS(SELECT * FROM {signup} WHERE uid=:uid)', array(':uid'=>$student->uid))->fetchField())
+		return array('idnumber');
+}
+
 function exam_user_login($edit, $account) {
 	$s=student_load($account);
 	if(empty($s) && !isset($edit['idnumber'])) return;

@@ -164,8 +164,11 @@ function student_user_account_form(&$form, $form_state) {
 	$form['personal']['notice']=array(
 		'#markup' => '<span class="error"><strong>'.t('Please provide the information of the student here, rather than the parent.').'</strong></span>',
 	);
-	if(isset($form_state['storage']['disable_edit']) && $form_state['storage']['disable_edit'])
-		$form['personal']['notice']['#markup'].='<br/><span class="error"><strong>'.t('You cannot edit your information now, as there are undergoing tasks.').'</strong></span>';
+	$disabled_attributes=module_invoke_all('student_disable_modify', $defaults);
+	if(!empty($disabled_attributes))
+		$form['personal']['notice']['#markup'].='<br/><span class="error"><strong>'.
+			t('You cannot modify some items of your information, because you done something related to you identify.').
+			'</strong></span>';
 	$form['personal']['idcard_type'] = array('#type' => 'select',
 		'#title' => t('Your ID Card Type'),
 		'#options' => array(
@@ -173,14 +176,14 @@ function student_user_account_form(&$form, $form_state) {
 			'1' => t('Oversea Passport'),
 		),
 		'#default_value' => $defaults ? $defaults->idcard_type:'0',
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('idcard_type', $disabled_attributes) || in_array('idnumber', $disabled_attributes),
 		'#required' => TRUE,
 	);
 	$form['personal']['idnumber'] = array('#type' => 'textfield',
 		'#title' => t('Your ID Card Number'),
 		'#description' => t('We\'re calculating gender and date of birth based on your ID card number.') ,
 		'#default_value' => $defaults ? $defaults->idcard_number:'',
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('idnumber', $disabled_attributes),
 		'#maxlength' => 18,
 		'#required' => TRUE,
 		'#attributes' => array('style'=>'text-transform: uppercase; ime-mode: disabled; -webkit-ime-mode: disabled;'),
@@ -192,7 +195,7 @@ function student_user_account_form(&$form, $form_state) {
 			'month' => 1*substr($defaults->date_of_birth,4,2),
 			'day' => 1*substr($defaults->date_of_birth,6,2),
 		):array(),
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('dateofbirth', $disabled_attributes) || in_array('idnumber', $disabled_attributes),
 		'#required' => TRUE,
 		'#element_validate' => array(),
 		'#states' => array(
@@ -208,7 +211,7 @@ function student_user_account_form(&$form, $form_state) {
 		'#title' => t('Your Gender'),
 		'#default_value' => $defaults ? $defaults->gender: '1',
 		'#options' => array('1'=>t('Male'), '2'=>t('Female')),
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('gender', $disabled_attributes) || in_array('idnumber', $disabled_attributes),
 		'#required' => TRUE,
 		'#states' => array(
 			'invisible' => array(
@@ -222,7 +225,7 @@ function student_user_account_form(&$form, $form_state) {
 	$form['personal']['truename'] = array('#type' => 'textfield',
 		'#title' => t('Your Name'),
 		'#default_value' => $defaults ? $defaults->name:'',
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('name', $disabled_attributes),
 		'#maxlength' => 50,
 		'#required' => TRUE,
 		'#attributes' => array('style'=>'ime-mode: enabled; -webkit-ime-mode: enabled;'),
@@ -231,13 +234,13 @@ function student_user_account_form(&$form, $form_state) {
 	$form['personal']['haveexname'] = array('#type' => 'checkbox',
 		'#title' => t('I have exname'),
 		'#default_value' => $defaults ? !empty($defaults->exname):FALSE,
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('name', $disabled_attributes),
 		'#description' => t('If you do not have exname, please uncheck the above checkbox.'),
 	);
 	$form['personal']['exname'] = array('#type' => 'textfield',
 		'#title' => t('Your Ex Name'),
 		'#default_value' => $defaults ? $defaults->exname:'',
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('name', $disabled_attributes),
 		'#maxlength' => 50,
 		'#attributes' => array('style'=>'ime-mode: enabled; -webkit-ime-mode: enabled;'),
 		'#states' => array(
@@ -254,7 +257,7 @@ function student_user_account_form(&$form, $form_state) {
 		'#title' => t('Your Name in alphabet'),
 		'#description' => t('Only Half-width alphabet is allowed.'),
 		'#default_value' => $defaults ? $defaults->foreign_name:'',
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('name', $disabled_attributes),
 		'#maxlength' => 100,
 		'#required' => TRUE,
 		'#attributes' => array('style'=>'text-transform: uppercase; ime-mode: disabled; -webkit-ime-mode: disabled;'),
@@ -271,7 +274,7 @@ function student_user_account_form(&$form, $form_state) {
 		'#type' => 'managed_file',
 		'#title' => !$defaults?t('Photo'):t('Change Photo'),
 		'#required' => !$defaults,
-		'#disabled' => isset($form_state['storage']['disable_edit'])?$form_state['storage']['disable_edit']:FALSE,
+		'#disabled' => in_array('photo', $disabled_attributes),
 		'#upload_validators' => array(
 			'file_validate_size' => array( 4 * 1024 * 1024),
 			'file_validate_extensions' => array('jpg png jpeg'),
