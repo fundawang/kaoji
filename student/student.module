@@ -164,7 +164,8 @@ function student_user_account_form(&$form, $form_state) {
 	$form['personal']['notice']=array(
 		'#markup' => '<span class="error"><strong>'.t('Please provide the information of the student here, rather than the parent.').'</strong></span>',
 	);
-	$disabled_attributes=module_invoke_all('student_disable_modify', $defaults);
+	if($defaults) $disabled_attributes=module_invoke_all('student_disable_modify', $defaults);
+	else $disabled_attributes=array();
 	if(!empty($disabled_attributes))
 		$form['personal']['notice']['#markup'].='<br/><span class="error"><strong>'.
 			t('You cannot modify some items of your information, because you done something related to you identify.').
