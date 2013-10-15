@@ -863,6 +863,18 @@ function exam_scores_query_unbind_form($form, $form_state, $tablename, $uniqueid
 			'INNER JOIN {signup} sg ON s.uid=sg.uid WHERE sg.sid=:sid',
 			array(':sid'=>$uniqueid)
 		)->fetchObject();
+		$form['warn']=array(
+			'#markup' => '<div class="messages error">'.t('WARNING: The score is already aquired by student. Deleting it might cause confusions to the student.').'</div>',
+		);
+		$form['#attached']['js'][]=array('data'=>
+			'jQuery(document).ready(function(){'.
+				'jQuery("#edit-submit").click(function(){ '.
+					'if(!confirm("'.t('Are you sure you want to delete the aquired score?').'")) event.preventDefault();'.
+				'});'. // end submit.click function()
+			'});'. // end document ready function()
+			'','type' => 'inline'
+		);
+
 	} else {
 		$r=db_query('SELECT name, idcard_number, score, result, coid FROM {scores_temp} WHERE stid=:stid', array(':stid'=>$uniqueid))
 			->fetchObject();
