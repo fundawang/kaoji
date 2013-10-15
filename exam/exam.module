@@ -1062,7 +1062,7 @@ function exam_user_scores_report($sid) {
 		);
 	}
 	$s=student_load($GLOBALS['user']);
-	$s->idcard_number=substr_replace($s->idcard_number, '*', 3, strlen($s->idcard_number)-6);
+	$s->idcard_number=substr_replace($s->idcard_number, str_repeat('*', strlen($s->idcard_number)-6), 3, -3);
 	$sg=db_query('SELECT * FROM {signup} WHERE sid=:sid', array(':sid'=>$sid))->fetchObject();
 	$co=certificate_operations_load($sg->coid);
 	$output='';
