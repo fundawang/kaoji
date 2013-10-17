@@ -618,10 +618,11 @@ function student_load($user) {
 	if(!is_object($user)) $user=user_load($user);
 	if($user && $user->uid) {
 		$obj=cache_get('student.'.$user->uid);
-		if(!$obj) {
+		if(empty($obj->data)) {
 			$obj=db_query('SELECT * FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid))->fetchObject();
 			cache_set('student.'.$user->uid, $obj);
-		}
+		} else
+			$obj=$obj->data;
 		if(!$obj) return FALSE;
 		$obj->photoid=$obj->picture;
 		if(!empty($obj->picture)) {
