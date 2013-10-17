@@ -1674,7 +1674,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 	);
 	if(!isset($form_state['storage']['combines']))
 		$form_state['storage']['combines']=1;
-	if(count($going->requirements)>1)
+	if(count($going->requirements) > $form_state['storage']['combines'])
 		$form_state['storage']['combines']=count($going->requirements);
 	for($i=1; $i<=$form_state['storage']['combines']; $i++) {
 		$form['condition']['condition'.$i]=array(
@@ -1692,7 +1692,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		);
 		if(!isset($form_state['storage']['combine'][$i]))
 			$form_state['storage']['combine'][$i]=1;
-		if(count($going->requirements[$i])>1)
+		if(count($going->requirements[$i]) > $form_state['storage']['combine'][$i])
 			$form_state['storage']['combines']=count($going->requirements[$i]);
 		for($j=1; $j<=$form_state['storage']['combine'][$i]; $j++) {
 			$form['condition']['condition'.$i]['cert'.$j]=array(
@@ -1708,6 +1708,9 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 					'#type' => 'submit',
 					'#name' => 'condition_'.$i.'_rm',
 					'#value' => t('Remove'),
+					'#attributes' => array(
+						'title' => t('Remove this certificate from this combine'),
+					),
 					'#suffix' => '</div>',
 					'#submit' => array('exam_arrangement_modify_form_addrm_cert_submit'),
 					'#ajax' => array(
@@ -1734,6 +1737,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 				'#type' => 'submit',
 				'#name' => 'condition_'.$i.'_rm',
 				'#value' => t('Remove this combine'),
+				'#limit_validation_errors' => array(),
 				'#submit' => array('exam_arrangement_modify_form_addrm_combine_submit'),
 				'#ajax' => array(
 					'callback' => 'exam_arrangement_modify_form_combine_ajax_callback',
