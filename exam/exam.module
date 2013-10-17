@@ -1693,7 +1693,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		if(!isset($form_state['storage']['combine'][$i]))
 			$form_state['storage']['combine'][$i]=1;
 		if(count($going->requirements[$i]) > $form_state['storage']['combine'][$i])
-			$form_state['storage']['combines']=count($going->requirements[$i]);
+			$form_state['storage']['combine'][$i]=count($going->requirements[$i]);
 		for($j=1; $j<=$form_state['storage']['combine'][$i]; $j++) {
 			$form['condition']['condition'.$i]['cert'.$j]=array(
 				'#type' => 'select',
