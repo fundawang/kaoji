@@ -1421,8 +1421,8 @@ function exam_arrangement_form($form, &$form_state) {
 		$requirements=unserialize($r->requirements);
 		$reqtext=array();
 		$a=array();
-		for($i=1;$i<=3;$i++) {
-			for($j=1;$j<=3;$j++) {
+		for($i=1;$i<=count($requirements);$i++) {
+			for($j=1;$j<=count($requirements[$i]);$j++) {
 				if(isset($requirements[$i][$j]))
 					$reqtext[$i][$j]=$certs[$requirements[$i][$j]];
 			}
@@ -1667,7 +1667,16 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 	foreach($query as $r) {
 		$certs[$r->cid]=sprintf('%s %s', $r->series, $r->name);
 	}
-	for($i=1; $i<=3; $i++) {
+	$form['condition']=array(
+		'#tree' => TRUE,
+		'#prefix' => '<div id="combines">',
+		'#suffix' => '</div>',
+	);
+	if(!isset($form_state['storage']['combines']))
+		$form_state['storage']['combines']=1;
+	if(count($going->requirements)>1)
+		$form_state['storage']['combines']=count($going->requirements);
+	for($i=1; $i<=$form_state['storage']['combines']; $i++) {
 		$form['condition']['condition'.$i]=array(
 			'#type' => 'fieldset',
 			'#title' => t('Certificate Requirement Combine !i', array('!i'=>$i)),
@@ -1678,20 +1687,76 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 					':input[name="isconditioned"]' => array('value' => '1'),
 				),
 			),
+			'#prefix' => '<div id="combine'.$i.'">',
+			'#suffix' => '</div>',
 		);
-		for($j=1; $j<=3; $j++) {
-			$form['condition']['condition'.$i]['cert'.$i.$j]=array(
+		if(!isset($form_state['storage']['combine'][$i]))
+			$form_state['storage']['combine'][$i]=1;
+		if(count($going->requirements[$i])>1)
+			$form_state['storage']['combines']=count($going->requirements[$i]);
+		for($j=1; $j<=$form_state['storage']['combine'][$i]; $j++) {
+			$form['condition']['condition'.$i]['cert'.$j]=array(
 				'#type' => 'select',
 				'#title' => t('Certificate !j of combine !i', array('!i'=>$i, '!j'=>$j)),
 				'#options' => $certs,
-				'#default_value' => isset($going->requirements[$i][$j])?$going->requirements[$i][$j]:0,
+				'#default_value' => isset($form_state['values']['condition']['condition'.$i]['cert'.$j])?$form_state['values']['condition']['condition'.$i]['cert'.$j]:(isset($going->requirements[$i][$j])?$going->requirements[$i][$j]:0),
 				'#prefix' => '<div class="inline-element-div">',
-				'#suffix' => '</div>',
 				'#disabled' => $going->status!=exam_signup_going_CLOSE,
 			);
+			if($j==$form_state['storage']['combine'][$i] && $j>1)
+				$form['condition']['condition'.$i]['rm'.$j]=array(
+					'#type' => 'submit',
+					'#name' => 'condition_'.$i.'_rm',
+					'#value' => t('Remove'),
+					'#suffix' => '</div>',
+					'#submit' => array('exam_arrangement_modify_form_addrm_cert_submit'),
+					'#ajax' => array(
+						'callback' => 'exam_arrangement_modify_form_cert_ajax_callback',
+						'wrapper' => 'combine'.$i,
+					),
+				);
+			else
+				$form['condition']['condition'.$i]['cert'.$j]['#suffix'] = '</div>';
 		}
-
+		$form['condition']['condition'.$i]['add']=array(
+			'#type' => 'submit',
+			'#name' => 'condition_'.$i.'_add',
+			'#limit_validation_errors' => array(),
+			'#submit' => array('exam_arrangement_modify_form_addrm_cert_submit'),
+			'#value' => t('Add one certificate'),
+			'#ajax' => array(
+				'callback' => 'exam_arrangement_modify_form_cert_ajax_callback',
+				'wrapper' => 'combine'.$i,
+			),
+		);
+		if($i==$form_state['storage']['combines'] && $i>1)
+			$form['condition']['condition'.$i]['rmcombine']=array(
+				'#type' => 'submit',
+				'#name' => 'condition_'.$i.'_rm',
+				'#value' => t('Remove this combine'),
+				'#submit' => array('exam_arrangement_modify_form_addrm_combine_submit'),
+				'#ajax' => array(
+					'callback' => 'exam_arrangement_modify_form_combine_ajax_callback',
+					'wrapper' => 'combines',
+				),
+			);
 	}
+	$form['condition']['addcombine']=array(
+		'#type' => 'submit',
+		'#name' => 'combines_add',
+		'#value' => t('Add another combine'),
+		'#limit_validation_errors' => array(),
+		'#submit' => array('exam_arrangement_modify_form_addrm_combine_submit'),
+		'#ajax' => array(
+			'callback' => 'exam_arrangement_modify_form_combine_ajax_callback',
+			'wrapper' => 'combines',
+		),
+		'#states' => array(
+			'visible' => array(
+				':input[name="isconditioned"]' => array('value' => '1'),
+			),
+		),
+	);
 	if($going->status == exam_signup_going_CLOSE) {
 		$form['save']=array(
 			'#type' => 'submit',
@@ -1707,12 +1772,38 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 	return $form;
 }
 
+function exam_arrangement_modify_form_addrm_cert_submit($form, &$form_state) {
+	$a=explode('_',$form_state['triggering_element']['#name']);
+	if($a[2]=='add')
+		$form_state['storage']['combine'][$a[1]]++;
+	else if($a[2]=='rm')
+		$form_state['storage']['combine'][$a[1]]--;
+	$form_state['rebuild'] = TRUE;
+}
+
+function exam_arrangement_modify_form_cert_ajax_callback($form, $form_state) {
+	$a=explode('_',$form_state['triggering_element']['#name']);
+	return $form['condition']['condition'.$a[1]];
+}
+
+function exam_arrangement_modify_form_addrm_combine_submit($form, &$form_state) {
+	if($form_state['triggering_element']['#name']=='combines_add')
+		$form_state['storage']['combines']++;
+	else
+		$form_state['storage']['combines']--;
+	$form_state['rebuild'] = TRUE;
+}
+
+function exam_arrangement_modify_form_combine_ajax_callback($form, $form_state) {
+	return $form['condition'];
+}
+
 function exam_arrangement_modify_form_submit($form, &$form_state) {
 	$requirements=array();
-	for($i=1;$i<=3;$i++) {
-		for($j=1;$j<=3;$j++) {
-			if($form_state['values']['cert'.$i.$j])
-				$requirements[$i][$j]=$form_state['values']['cert'.$i.$j];
+	for($i=1;$i<=$form_state['storage']['combines'];$i++) {
+		for($j=1;$j<=$form_state['storage']['combine'][$i];$j++) {
+			if($form_state['values']['condition']['condition'.$i]['cert'.$j])
+				$requirements[$i][$j]=$form_state['values']['condition']['condition'.$i]['cert'.$j];
 		}
 	}
 	if(!empty($requirements)) $requirements=serialize($requirements);
