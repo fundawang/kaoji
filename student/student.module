@@ -297,8 +297,8 @@ function student_picture($account, $rev) {
 		$kv->init();
 		$fname=sprintf('student_photos_%s_%s', $account->uid, $rev);
 		$img_tmp=$kv->get($fname);
-		if(!$img_tmp) return NULL;
 		unset($kv);
+		if(!$img_tmp) return NULL;
 	}
 	else {
 		$query=db_query('SELECT photo FROM {photos} where uid=:uid AND photoid=:rev',array(':uid'=>$account->uid, ':rev'=>$rev));
@@ -405,6 +405,7 @@ function student_user_account_form_save($form, &$form_state) {
 			else
 				$newfile=$file->uri.'.jpg';
 			image_save($image, $newfile);
+			imagedestroy($image->resource);
 			unset($image);
 			$data=file_get_contents($newfile);
 			file_unmanaged_delete($newfile);
