@@ -1810,7 +1810,7 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 				$requirements[$i][$j]=$form_state['values']['condition']['condition'.$i]['cert'.$j];
 		}
 	}
-	if(!empty($requirements)) $requirements=serialize($requirements);
+	if($form_state['values']['isconditioned'] && !empty($requirements)) $requirements=serialize($requirements);
 	else $requirements=NULL;
 	db_update('goings')->condition('gid', $form_state['storage']['going']->gid)->fields(array(
 		'description' => $form_state['values']['description'],
