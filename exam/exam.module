@@ -1807,7 +1807,7 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 	for($i=1;$i<=$form_state['storage']['combines'];$i++) {
 		for($j=1;$j<=$form_state['storage']['combine'][$i];$j++) {
 			if($form_state['values']['condition']['condition'.$i]['cert'.$j])
-				$requirements[$i][$j]=$form_state['values']['condition']['condition'.$i]['cert'.$j];
+				$requirements[$i][]=$form_state['values']['condition']['condition'.$i]['cert'.$j];
 		}
 	}
 	if($form_state['values']['isconditioned'] && !empty($requirements)) $requirements=serialize($requirements);
