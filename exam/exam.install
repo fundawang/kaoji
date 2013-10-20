@@ -159,10 +159,10 @@ function exam_schema() {
 			'aid' => array('type' => 'serial', 'not null' => TRUE),
 			'rid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
 			'gid' => array('type' => 'int', 'unsigned' => TRUE, 'not null' => TRUE),
-			'seriesname' => array('type' => 'varchar', 'length' => '20', 'not null' => TRUE),
+			'seriesname' => array('type' => 'varchar', 'length' => '20', 'not null' => FALSE),
 			'date' => array('type' => 'varchar', 'length' => '8', 'not null' => TRUE),
-			'begintime' => array('type' => 'varchar', 'length' => '4', 'not null' => TRUE),
-			'endtime' => array('type' => 'varchar', 'length' => '4', 'not null' => TRUE),
+			'begintime' => array('type' => 'varchar', 'length' => '4', 'not null' => FALSE),
+			'endtime' => array('type' => 'varchar', 'length' => '4', 'not null' => FALSE),
 		),
 		'primary key' => array('aid'),
 		'indexes' => array(
@@ -259,4 +259,13 @@ function exam_update_7003() {
 		)
 	);
 	db_add_field('arragements', 'gid', $going, $index);
+}
+
+/**
+ * alter arrage table to save virtual arrangements
+ */
+function exam_update_7004() {
+	db_change_field('arragements', 'seriesname', 'seriesname', array('type' => 'varchar', 'length' => '20', 'not null' => FALSE));
+	db_change_field('arragements', 'begintime', 'begintime', array('type' => 'varchar', 'length' => '4', 'not null' => FALSE));
+	db_change_field('arragements', 'endtime', 'endtime', array('type' => 'varchar', 'length' => '4', 'not null' => FALSE));
 }
