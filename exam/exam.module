@@ -1782,17 +1782,23 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 	$forceyear=db_query('SELECT year FROM {operations} WHERE oid=:oid', array(':oid'=>$going->co->oid))->fetchField();
 	for($i=1; $i<=$form_state['storage']['periods']; $i++) {
 		$arr=$query->fetchObject();
-		if($arr) {
+		if($arr)
+			$limit=explode('.',$arr->seriesname);
+		else if(isset($form_state['input']['period']['period'.$i-1]['amlimit']))
+			$limit=array($form_state['input']['period']['period'.$i-1]['amlimit'], $form_state['input']['period']['period'.$i-1]['pmlimit']);
+		if(isset($form_state['input']['period']['period'.$i]['date']))
+			$date=array(
+				'year' => $forceyear,
+				'month' => $form_state['input']['period']['period'.$i]['date']['month'],
+				'day' => $form_state['input']['period']['period'.$i]['date']['day']+1,
+			);
+		else if($arr)
 			$date=array(
 				'year' => $forceyear,
 				'month' => (int)substr($arr->date, 4, 2),
 				'day' => (int)substr($arr->date, 6, 2)
 			);
-			$limit=explode('.',$arr->seriesname);
-		} else if(isset($date))
-			$date['day']++;
-		if(isset($form_state['values']['period']['period'.$i-1]['date']))
-			$date=$form_state['values']['period']['period'.$i-1]['date'];
+
 		$form['period']['period'.$i]=array(
 			'#type' => 'container',
 			'#attributes' => array(
@@ -1949,6 +1955,11 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 		'description' => $form_state['values']['description'],
 		'requirements' => $requirements,
 	))->execute();
+	if($form['period']['period1']['date']['#default_value']!=$form_state['values']['period']['period1']['date'])
+		$form_state['storage']['periods_delete'][]=sprintf('%4d%02d%02d',
+			$form['period']['period1']['date']['#default_value']['year'],
+			$form['period']['period1']['date']['#default_value']['month'],
+			$form['period']['period1']['date']['#default_value']['day']);
 	if(isset($form_state['storage']['periods_delete']))
 		foreach($form_state['storage']['periods_delete'] as $date) {
 			db_delete('arragements')->condition('gid', $form_state['storage']['going']->gid)
