@@ -1445,8 +1445,8 @@ function exam_arrangement_form($form, &$form_state) {
 		$a=array();
 		for($i=1;$i<=count($requirements);$i++) {
 			for($j=1;$j<=count($requirements[$i]);$j++) {
-				if(isset($requirements[$i][$j]))
-					$reqtext[$i][$j]=$certs[$requirements[$i][$j]];
+				if(isset($requirements[$i][$j-1]))
+					$reqtext[$i][$j-1]=$certs[$requirements[$i][$j-1]];
 			}
 			if(!empty($reqtext[$i]))
 				$a[]=implode('+', $reqtext[$i]);
@@ -1622,7 +1622,14 @@ function going_load($gid) {
 	if(!empty($obj->data)) return $obj->data;
 	$r=db_query('SELECT * FROM {goings} WHERE gid=:gid', array(':gid'=>$gid))->fetchObject();
 	if($r) {
-		$r->requirements=unserialize($r->requirements);
+		if(!empty($r->requirements)) {
+			$requirements=unserialize($r->requirements);
+			$requirements=array_values($requirements);
+			$r->requirements=array();
+			foreach($requirements as $req) {
+				$r->requirements[]=array_values($req);
+			}
+		}
 		$r->co=certificate_operations_load($r->coid);
 		$r->place=db_query('SELECT * FROM {places} WHERE pid=:pid', array(':pid'=>$r->pid))->fetchObject();
 	}
@@ -1696,9 +1703,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		'#suffix' => '</div>',
 	);
 	if(!isset($form_state['storage']['combines']))
-		$form_state['storage']['combines']=1;
-	if(count($going->requirements) > $form_state['storage']['combines'])
-		$form_state['storage']['combines']=count($going->requirements);
+		$form_state['storage']['combines']=max(count($going->requirements), 1);
 	for($i=1; $i<=$form_state['storage']['combines']; $i++) {
 		$form['condition']['condition'.$i]=array(
 			'#type' => 'fieldset',
@@ -1715,14 +1720,14 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		);
 		if(!isset($form_state['storage']['combine'][$i]))
 			$form_state['storage']['combine'][$i]=1;
-		if(count($going->requirements[$i]) > $form_state['storage']['combine'][$i])
+		if(count($going->requirements[$i-1]) > $form_state['storage']['combine'][$i])
 			$form_state['storage']['combine'][$i]=count($going->requirements[$i]);
 		for($j=1; $j<=$form_state['storage']['combine'][$i]; $j++) {
 			$form['condition']['condition'.$i]['cert'.$j]=array(
 				'#type' => 'select',
 				'#title' => t('Certificate !j of combine !i', array('!i'=>$i, '!j'=>$j)),
 				'#options' => $certs,
-				'#default_value' => isset($form_state['values']['condition']['condition'.$i]['cert'.$j])?$form_state['values']['condition']['condition'.$i]['cert'.$j]:(isset($going->requirements[$i][$j-1])?$going->requirements[$i][$j-1]:0),
+				'#default_value' => isset($form_state['values']['condition']['condition'.$i]['cert'.$j])?$form_state['values']['condition']['condition'.$i]['cert'.$j]:(isset($going->requirements[$i-1][$j-1])?$going->requirements[$i-1][$j-1]:0),
 				'#prefix' => '<div class="inline-element-div">',
 				'#disabled' => $going->status!=exam_signup_going_CLOSE,
 			);
