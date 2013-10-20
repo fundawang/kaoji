@@ -1989,7 +1989,7 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 		'description' => $form_state['values']['description'],
 		'requirements' => $requirements,
 	))->execute();
-	cache_clear_all('going.'.$form_state['storage']['going']->gid, 'cache');
+	cache_clear_all('going:'.$form_state['storage']['going']->gid, 'cache');
 	if($form['period']['period1']['date']['#default_value']!=$form_state['values']['period']['period1']['date'])
 		$form_state['storage']['periods_delete'][]=sprintf('%4d%02d%02d',
 			$form['period']['period1']['date']['#default_value']['year'],
@@ -2013,7 +2013,7 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 		db_update('goings')->condition('gid', $form_state['storage']['going']->gid)->fields(array(
 			'status' => exam_signup_going_OPEN,
 		))->execute();
-		cache_clear_all('going.'.$form_state['storage']['going']->gid, 'cache');
+		cache_clear_all('going:'.$form_state['storage']['going']->gid, 'cache');
 		drupal_set_message(t('Going !cname in !place saved and opend.',	array(
 			'!cname'=>$form_state['storage']['going']->co->cname,
 			'!place'=>$form_state['storage']['going']->place->name,
