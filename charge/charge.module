@@ -249,6 +249,7 @@ function charge_fee_submit($form, $form_state) {
 			))->execute();
 		}
 	}
+	cache_clear_all('charging_accounts:', 'cache', TRUE);
 	drupal_set_message(t('Charging accounts saved.'));
 }
 
@@ -288,10 +289,14 @@ function charge_form_alter(&$form, &$form_state, $form_id) {
 }
 
 function charge_form_alter_submit(&$form, &$form_state) {
-	$obj=db_query('SELECT * FROM {charging_accounts} WHERE module=:module AND account=:account',
-		array(':module'=>$form_state['storage']['charge']['module'],':account'=>$form_state['storage']['charge']['account']))
-		->fetchObject();
-	if(!$obj) return;
+	$obj=cache_get('charging_accounts:'.$form_state['storage']['charge']['module'].':'.$form_state['storage']['charge']['account']);
+	if(empty($obj->data)) {
+		$obj=db_query('SELECT * FROM {charging_accounts} WHERE module=:module AND account=:account',
+			array(':module'=>$form_state['storage']['charge']['module'],':account'=>$form_state['storage']['charge']['account']))
+			->fetchObject();
+		if(!$obj) return;
+		cache_set('charging_accounts:'.$form_state['storage']['charge']['module'].':'.$form_state['storage']['charge']['account'], $obj);
+	} else $obj=$obj->data;
 	$r=db_merge('orders')->key(array('uid'=>$GLOBALS['user']->uid, 'ordertitle'=>$form_state['storage']['charge']['ordertitle']))
 		->insertFields(array(
 		'orderno' => sprintf('%s%06d',date('YmdHms'),mt_rand(0,999999)),
