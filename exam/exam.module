@@ -1604,18 +1604,11 @@ function going_load($gid) {
 }
 
 function exam_arrangement_modify_form_title($going) {
-	if($going->status==exam_signup_going_CLOSE) 
-		return t('Modify going !cname on !oname in !place',	array(
-			'!cname' => $going->co->cname,
-			'!oname' => $going->co->oname,
-			'!place' => $going->place->name,
-		));
-	else
-		return t('View going !cname on !oname in !place',	array(
-			'!cname' => $going->co->cname,
-			'!oname' => $going->co->oname,
-			'!place' => $going->place->name,
-		));
+	return t('Modify going !cname on !oname in !place',	array(
+		'!cname' => $going->co->cname,
+		'!oname' => $going->co->oname,
+		'!place' => $going->place->name,
+	));
 }
 
 function exam_arrangement_modify_form_access($going) {
