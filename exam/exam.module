@@ -1884,7 +1884,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 
 function _exam_arrangement_modify_form_limit_validate($element, $form_state, $form) {
 	if(!preg_match('/^[0-9]+$/', $element['#value']))
-		form_error($element, t('The input must be integer'));
+		form_error($element, t('!name field must be a interger.',array('!name'=>$element['#title'])));
 }
 
 function _exam_arrangement_modify_form_limit_years_in_date_callback($element) {
