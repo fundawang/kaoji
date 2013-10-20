@@ -1775,12 +1775,11 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		'#tree' => TRUE,
 		'#collapsible' => TRUE,
 	);
-	if(!isset($form_state['storage']['periods']))
-		$form_state['storage']['periods']=1;
 	$query=db_query('SELECT * FROM {arragements} WHERE gid=:gid AND rid=0',array(':gid'=>$going->gid));
 	$num_arrangements=$query->rowCount();
+	if(!isset($form_state['storage']['periods']))
+		$form_state['storage']['periods']=max($num_arrangements,1);
 	$forceyear=db_query('SELECT year FROM {operations} WHERE oid=:oid', array(':oid'=>$going->co->oid))->fetchField();
-	if($num_arrangements>$form_state['storage']['periods']) $form_state['storage']['periods']=$num_arrangements;
 	for($i=1; $i<=$form_state['storage']['periods']; $i++) {
 		$arr=$query->fetchObject();
 		if($arr) {
@@ -1923,8 +1922,12 @@ function exam_arrangement_modify_form_combine_ajax_callback($form, $form_state) 
 function exam_arrangement_modify_form_addrm_period_submit($form, &$form_state) {
 	if($form_state['triggering_element']['#name']=='period_add')
 		$form_state['storage']['periods']++;
-	else
+	else {
+		$i=$form_state['storage']['periods'];
+		$date=sprintf('%4d%02d%02d', $form['period']['period'.$i]['date']['#value']['year'], $form['period']['period'.$i]['date']['#value']['month'], $form['period']['period'.$i]['date']['#value']['day']);
+		$form_state['storage']['periods_delete'][]=$date;
 		$form_state['storage']['periods']--;
+	}
 	$form_state['rebuild'] = TRUE;
 }
 
@@ -1946,6 +1949,11 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 		'description' => $form_state['values']['description'],
 		'requirements' => $requirements,
 	))->execute();
+	if(isset($form_state['storage']['periods_delete']))
+		foreach($form_state['storage']['periods_delete'] as $date) {
+			db_delete('arragements')->condition('gid', $form_state['storage']['going']->gid)
+				->condition('date', $date)->condition('rid',0)->execute();
+		}
 	for($i=1;$i<=$form_state['storage']['periods']; $i++) {
 		$date=sprintf('%4d%02d%02d', $form_state['values']['period']['period'.$i]['date']['year'], $form_state['values']['period']['period'.$i]['date']['month'], $form_state['values']['period']['period'.$i]['date']['day']);
 		db_merge('arragements')->key(array('gid'=>$form_state['storage']['going']->gid, 'rid'=>0, 'date'=>$date))->fields(array(
