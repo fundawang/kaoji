@@ -222,7 +222,7 @@ function cert_issue_massiveupload_form_step1($form, $form_state) {
 			$options[$r->oid]=$r->name;
 	}
 	for($i=1980;$i<=(int)date('Y');$i++) {
-		$options[$i.'02']=t('!year winter',array('!year'=>$i));
+		$options[$i.'01']=t('!year winter',array('!year'=>$i));
 		$options[$i.'08']=t('!year summer',array('!year'=>$i));
 	}
 	$form['organization']=array(
@@ -280,7 +280,7 @@ function cert_issue_massiveupload_form_step1_submit($form, &$form_state) {
 	if($form_state['values']['autocreate']) {
 		// First merge th organizations table
 		$year=substr($form_state['values']['organization'],0,4);
-		$name=substr($form_state['values']['organization'],4,2)=='02'?t('!year winter',array('!year'=>$year)):t('!year summer',array('!year'=>$year));
+		$name=substr($form_state['values']['organization'],4,2)=='01'?t('!year winter',array('!year'=>$year)):t('!year summer',array('!year'=>$year));
 		db_merge('operations')->key(array('oid'=>$form_state['values']['organization']))->fields(array(
 			'year' => $year,
 			'name' => $name,

@@ -478,9 +478,9 @@ function certificate_operations_form($form, $form_state) {
 			),
 		);
 		$options=array(
-			'02' => t('Feb (winter)'),
+			'01' => t('Jan (winter)'),
 			'08' => t('Aug (summer)'),
-			'01' => t('Jan'),
+			'02' => t('Feb'),
 			'03' => t('Mar'),
 			'04' => t('Apr'),
 			'05' => t('May'),
@@ -544,9 +544,9 @@ function certificate_operations_form($form, $form_state) {
 			'#required' => TRUE,
 		);
 		$options=array(
-			'02' => t('Feb (winter)'),
+			'01' => t('Jan (winter)'),
 			'08' => t('Aug (summer)'),
-			'01' => t('Jan'),
+			'02' => t('Feb'),
 			'03' => t('Mar'),
 			'04' => t('Apr'),
 			'05' => t('May'),
@@ -627,7 +627,7 @@ function certificate_operations_form_copy_validate($form, $form_state) {
 function certificate_operations_form_copy_submit(&$form, &$form_state) {
 	$i=0;
 	$oid=$form_state['values']['copyoperationselectyear'].$form_state['values']['copyoperationselectmonth'];
-	if($form_state['values']['copyoperationselectmonth']=='02')
+	if($form_state['values']['copyoperationselectmonth']=='01')
 		$oname=t('!year winter',array('!year'=>$form_state['values']['copyoperationselectyear']));
 	elseif ($form_state['values']['copyoperationselectmonth']=='08')
 		$oname=t('!year summer',array('!year'=>$form_state['values']['copyoperationselectyear']));
@@ -672,7 +672,7 @@ function certificate_operations_form_addcert_submit($form, &$form_state) {
 
 function certificate_operations_form_create_submit($form, &$form_state) {
 	$oid=$form_state['values']['year'].$form_state['values']['month'];
-	if($form_state['values']['month']=='02')
+	if($form_state['values']['month']=='01')
 		$oname=t('!year winter',array('!year'=>$form_state['values']['year']));
 	elseif ($form_state['values']['month']=='08')
 		$oname=t('!year summer',array('!year'=>$form_state['values']['year']));
