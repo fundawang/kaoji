@@ -1439,7 +1439,8 @@ function exam_arrangement_form($form, &$form_state) {
 			$r->pname,
 			$a,
 			_exam_going_status_to_text($r->status),
-			$r->status==exam_signup_going_CLOSE?l(t('Modify'), 'exam/arrangement/modify/'.$r->gid):l(t('Review Signup'), 'exam/arrangement/list/'.$r->gid),
+			($r->status==exam_signup_going_CLOSE|| $r->status==exam_signup_going_OPEN)?
+				l(t('Modify'), 'exam/arrangement/modify/'.$r->gid):'',
 		);
 	}
 	if(count($rows)) {
@@ -1618,6 +1619,7 @@ function exam_arrangement_modify_form_title($going) {
 }
 
 function exam_arrangement_modify_form_access($going) {
+	if($going->status!=exam_signup_going_CLOSE && $going->status != exam_signup_going_OPEN) return FALSE;
 	if(user_access('admin exam places')) return TRUE;
 	if(user_access('manage own places'))
 		return db_query('SELECT EXISTS(SELECT * FROM {places} WHERE uid=:uid)', array(':uid'=>$GLOBALS['user']->uid))->fetchField();
@@ -1668,6 +1670,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		$certs[$r->cid]=sprintf('%s %s', $r->series, $r->name);
 	}
 	$form['condition']=array(
+		'#type' => 'container',
 		'#tree' => TRUE,
 		'#prefix' => '<div id="combines">',
 		'#suffix' => '</div>',
@@ -1712,6 +1715,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 						'title' => t('Remove this certificate from this combine'),
 					),
 					'#suffix' => '</div>',
+					'#limit_validation_errors' => array(),
 					'#submit' => array('exam_arrangement_modify_form_addrm_cert_submit'),
 					'#ajax' => array(
 						'callback' => 'exam_arrangement_modify_form_cert_ajax_callback',
@@ -1761,19 +1765,140 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 			),
 		),
 	);
-	if($going->status == exam_signup_going_CLOSE) {
+	$form['condition']['addcombine_sufix']=array(
+		'#type' => 'item',
+		'#markup' => '<hr/>',
+		'#states' => array(
+			'visible' => array(
+				':input[name="isconditioned"]' => array('value' => '1'),
+			),
+		),
+	);
+	$form['period']=array(
+		'#type' => 'fieldset',
+		'#required' => TRUE,
+		'#id' => 'edit-period',
+		'#title' => t('Exam periods'),
+		'#tree' => TRUE,
+		'#collapsible' => TRUE,
+	);
+	if(!isset($form_state['storage']['periods']))
+		$form_state['storage']['periods']=1;
+	$query=db_query('SELECT * FROM {arragements} WHERE gid=:gid AND rid=0',array(':gid'=>$going->gid));
+	$num_arrangements=$query->rowCount();
+	$forceyear=db_query('SELECT year FROM {operations} WHERE oid=:oid', array(':oid'=>$going->co->oid))->fetchField();
+	if($num_arrangements>$form_state['storage']['periods']) $form_state['storage']['periods']=$num_arrangements;
+	for($i=1; $i<=$form_state['storage']['periods']; $i++) {
+		$arr=$query->fetchObject();
+		if($arr) {
+			$date=array(
+				'year' => $forceyear,
+				'month' => (int)substr($arr->date, 4, 2),
+				'day' => (int)substr($arr->date, 6, 2)
+			);
+			$limit=explode('.',$arr->seriesname);
+		} else if(isset($date))
+			$date['day']++;
+		if(isset($form_state['values']['period']['period'.$i-1]['date']))
+			$date=$form_state['values']['period']['period'.$i-1]['date'];
+		$form['period']['period'.$i]=array(
+			'#type' => 'container',
+			'#attributes' => array(
+				'class' => array('inline-element-div'),
+			),
+		);
+		$form['period']['period'.$i]['date']=array(
+			'#type' => 'date',
+			'#required' => TRUE,
+			'#default_value' => array(
+				'year' => $forceyear,
+				'month' => ((int)substr($going->co->oid, 4))>6?8:1,
+				'day' => 1,
+			),
+			'#title' => t('Period !i', array('!i'=>$i)),
+			'#disabled' => ($going->status == exam_signup_going_CLOSE)? FALSE:$arr,
+			'#pre_render' => array('_exam_arrangement_modify_form_limit_years_in_date_callback'),
+		);
+		if(isset($date))
+			$form['period']['period'.$i]['date']['#default_value']=$date;
+		$form['period']['period'.$i]['amlimit']=array(
+			'#type' => 'textfield',
+			'#title' => t('AM Limit'),
+			'#required' => TRUE,
+			'#description' => t('persons').' ,',
+			'#element_validate' => array('_exam_arrangement_modify_form_limit_validate'),
+			'#default_value' => isset($limit)?$limit[0]:0,
+			'#disabled' => ($going->status == exam_signup_going_CLOSE)? FALSE:$arr,
+			'#attributes' => array(
+				'title' => t('Set as zero to prevent students to signup')
+			),
+			'#size' => 6,
+			'#maxlength' => 5,
+		);
+		$form['period']['period'.$i]['pmlimit']=array(
+			'#type' => 'textfield',
+			'#title' => t('PM Limit'),
+			'#required' => TRUE,
+			'#description' => t('persons'),
+			'#default_value' => isset($limit)?$limit[1]:0,
+			'#disabled' => ($going->status == exam_signup_going_CLOSE)? FALSE:$arr,
+			'#attributes' => array(
+				'title' => t('Set as zero to prevent students to signup')
+			),
+			'#size' => 6,
+			'#maxlength' => 5,
+		);
+		if($i>1 && $i==$form_state['storage']['periods'] && (!$arr || $going->status == exam_signup_going_CLOSE))
+			$form['period']['period'.$i]['rm']=array(
+				'#type' => 'submit',
+				'#value' => t('Remove'),
+				'#name' => 'period_rm',
+				'#attributes' => array(
+					'title' => t('Remove this period'),
+				),
+				'#limit_validation_errors' => array(),
+				'#submit' => array('exam_arrangement_modify_form_addrm_period_submit'),
+				'#ajax' => array(
+					'callback' => 'exam_arrangement_modify_form_period_ajax_callback',
+					'wrapper' => 'edit-period',
+				),
+			);
+	}
+	$form['period']['addperiod']=array(
+		'#type' => 'submit',
+		'#name' => 'period_add',
+		'#value' => t('Add a period'),
+		'#limit_validation_errors' => array(),
+		'#submit' => array('exam_arrangement_modify_form_addrm_period_submit'),
+		'#ajax' => array(
+			'callback' => 'exam_arrangement_modify_form_period_ajax_callback',
+			'wrapper' => 'edit-period',
+		),
+	);
+	if($going->status == exam_signup_going_CLOSE || $going->status==exam_signup_going_OPEN)
 		$form['save']=array(
 			'#type' => 'submit',
 			'#name' => 'save',
 			'#value' => t('Save'),
 		);
+	if($going->status == exam_signup_going_CLOSE)
 		$form['saveandopen']=array(
 			'#type' => 'submit',
 			'#name' => 'saveandopen',
 			'#value' => t('Save and Open it for students to signup'),
 		);
-	}
 	return $form;
+}
+
+function _exam_arrangement_modify_form_limit_validate($element, $form_state, $form) {
+	if(!preg_match('/^[0-9]+$/', $element['#value']))
+		form_error($element, t('The input must be integer'));
+}
+
+function _exam_arrangement_modify_form_limit_years_in_date_callback($element) {
+	$element['year']['#options'] = array($element['#default_value']['year'] => $element['#default_value']['year']);
+	$element['year']['#attributes']['style']='display: none';
+	return $element;
 }
 
 function exam_arrangement_modify_form_addrm_cert_submit($form, &$form_state) {
@@ -1802,6 +1927,18 @@ function exam_arrangement_modify_form_combine_ajax_callback($form, $form_state) 
 	return $form['condition'];
 }
 
+function exam_arrangement_modify_form_addrm_period_submit($form, &$form_state) {
+	if($form_state['triggering_element']['#name']=='period_add')
+		$form_state['storage']['periods']++;
+	else
+		$form_state['storage']['periods']--;
+	$form_state['rebuild'] = TRUE;
+}
+
+function exam_arrangement_modify_form_period_ajax_callback($form, $form_state) {
+	return $form['period'];
+}
+
 function exam_arrangement_modify_form_submit($form, &$form_state) {
 	$requirements=array();
 	for($i=1;$i<=$form_state['storage']['combines'];$i++) {
@@ -1816,6 +1953,15 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 		'description' => $form_state['values']['description'],
 		'requirements' => $requirements,
 	))->execute();
+	for($i=1;$i<=$form_state['storage']['periods']; $i++) {
+		$date=sprintf('%4d%02d%02d', $form_state['values']['period']['period'.$i]['date']['year'], $form_state['values']['period']['period'.$i]['date']['month'], $form_state['values']['period']['period'.$i]['date']['day']);
+		db_merge('arragements')->key(array('gid'=>$form_state['storage']['going']->gid, 'rid'=>0, 'date'=>$date))->fields(array(
+			'rid' => 0,
+			'gid' => $form_state['storage']['going']->gid,
+			'seriesname' => $form_state['values']['period']['period'.$i]['amlimit'].'.'.$form_state['values']['period']['period'.$i]['pmlimit'],
+			'date' => $date,
+		))->execute();
+	}
 	if($form_state['triggering_element']['#name']=='saveandopen') {
 		db_update('goings')->condition('gid', $form_state['storage']['going']->gid)->fields(array(
 			'status' => exam_signup_going_OPEN,
