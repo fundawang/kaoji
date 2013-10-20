@@ -38,6 +38,11 @@ function exam_help($path, $arg) {
 		case 'exam/scores/query':
 			$output = t('In this page, you could query the uploaded scores. If there are mistakes, and the scores are not claimed by student, you may remove it.');
 			break;
+		case 'user/signup':
+			$output = t('In this page, you will see all the exams you could signup. Some of them may require extra conditions be satisfied.');
+			$output .= t('If you have unclaimed certificates, click !here.',
+				array('!here'=>l(t('here'), 'user/claim')));
+			break;
 		case 'user/scores':
 			$output = t('In this page, you will see the scores and result of the test you have participated.');
 			$output .= t('If you have passed certain test, you may print the score report by clicking [@passbutton] link.',
@@ -162,6 +167,23 @@ function exam_menu() {
 		'type' => MENU_CALLBACK,
 		'page callback' => 'exam_scores_query_autocomplete_user',
 		'access callback' => 'exam_scores_query_form_access',
+	);
+	$items['user/signup'] = array(
+		'title' => 'Signup Exams',
+		'menu_name' => 'user-menu',
+		'plid' => '0',
+		'weight' => 7,
+		'page callback' => 'exam_user_signup',
+		'access callback' => 'exam_user_signup_access',
+	);
+	$items['user/signup/%going'] = array(
+		'type' => MENU_VISIBLE_IN_BREADCRUMB,
+		'title callback' => 'exam_user_signup_form_title',
+		'title arguments' => array(2),
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('exam_user_signup_form', 2),
+		'access callback' => 'exam_user_signup_form_access',
+		'access arguments'=> array(2),
 	);
 	$items['user/scores'] = array(
 		'title' => 'My scores',
@@ -1565,6 +1587,8 @@ function exam_arrangement_form_add_going_submit($form, $form_state) {
 			'coid' => $co->coid,
 			'pid' => $form_state['values']['place']
 		))->execute();
+		$gid=db_query('SELECT gid FROM {goings} WHERE coid=:coid AND pid=:pid', array(':coid'=>$co->coid, ':pid'=>$form_state['values']['place']))->fetchField();
+		cache_clear_all('going.'.$gid, 'cache');
 	}
 	drupal_set_message(t('Going added.'));
 }
@@ -1594,12 +1618,15 @@ function _exam_going_status_to_text($status) {
 }
 
 function going_load($gid) {
+	$obj=cache_get('going.'.$gid);
+	if(!empty($obj->data)) return $obj->data;
 	$r=db_query('SELECT * FROM {goings} WHERE gid=:gid', array(':gid'=>$gid))->fetchObject();
 	if($r) {
 		$r->requirements=unserialize($r->requirements);
 		$r->co=certificate_operations_load($r->coid);
 		$r->place=db_query('SELECT * FROM {places} WHERE pid=:pid', array(':pid'=>$r->pid))->fetchObject();
 	}
+	cache_set('going.'.$gid, $r);
 	return $r;
 }
 
@@ -1695,7 +1722,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 				'#type' => 'select',
 				'#title' => t('Certificate !j of combine !i', array('!i'=>$i, '!j'=>$j)),
 				'#options' => $certs,
-				'#default_value' => isset($form_state['values']['condition']['condition'.$i]['cert'.$j])?$form_state['values']['condition']['condition'.$i]['cert'.$j]:(isset($going->requirements[$i][$j])?$going->requirements[$i][$j]:0),
+				'#default_value' => isset($form_state['values']['condition']['condition'.$i]['cert'.$j])?$form_state['values']['condition']['condition'.$i]['cert'.$j]:(isset($going->requirements[$i][$j-1])?$going->requirements[$i][$j-1]:0),
 				'#prefix' => '<div class="inline-element-div">',
 				'#disabled' => $going->status!=exam_signup_going_CLOSE,
 			);
@@ -1721,6 +1748,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 		$form['condition']['condition'.$i]['add']=array(
 			'#type' => 'submit',
 			'#name' => 'condition_'.$i.'_add',
+			'#access' => $going->status == exam_signup_going_CLOSE,
 			'#limit_validation_errors' => array(),
 			'#submit' => array('exam_arrangement_modify_form_addrm_cert_submit'),
 			'#value' => t('Add one certificate'),
@@ -1745,6 +1773,7 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 	$form['condition']['addcombine']=array(
 		'#type' => 'submit',
 		'#name' => 'combines_add',
+		'#access' => $going->status == exam_signup_going_CLOSE,
 		'#value' => t('Add another combine'),
 		'#limit_validation_errors' => array(),
 		'#submit' => array('exam_arrangement_modify_form_addrm_combine_submit'),
@@ -1873,18 +1902,18 @@ function exam_arrangement_modify_form($form, &$form_state, $going) {
 			'wrapper' => 'edit-period',
 		),
 	);
-	if($going->status == exam_signup_going_CLOSE || $going->status==exam_signup_going_OPEN)
-		$form['save']=array(
-			'#type' => 'submit',
-			'#name' => 'save',
-			'#value' => t('Save'),
-		);
-	if($going->status == exam_signup_going_CLOSE)
-		$form['saveandopen']=array(
-			'#type' => 'submit',
-			'#name' => 'saveandopen',
-			'#value' => t('Save and Open it for students to signup'),
-		);
+	$form['save']=array(
+		'#type' => 'submit',
+		'#name' => 'save',
+		'#access' => $going->status == exam_signup_going_CLOSE || $going->status==exam_signup_going_OPEN,
+		'#value' => t('Save'),
+	);
+	$form['saveandopen']=array(
+		'#type' => 'submit',
+		'#access' => $going->status == exam_signup_going_CLOSE,
+		'#name' => 'saveandopen',
+		'#value' => t('Save and Open it for students to signup'),
+	);
 	return $form;
 }
 
@@ -1955,6 +1984,7 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 		'description' => $form_state['values']['description'],
 		'requirements' => $requirements,
 	))->execute();
+	cache_clear_all('going.'.$form_state['storage']['going']->gid, 'cache');
 	if($form['period']['period1']['date']['#default_value']!=$form_state['values']['period']['period1']['date'])
 		$form_state['storage']['periods_delete'][]=sprintf('%4d%02d%02d',
 			$form['period']['period1']['date']['#default_value']['year'],
@@ -1978,6 +2008,7 @@ function exam_arrangement_modify_form_submit($form, &$form_state) {
 		db_update('goings')->condition('gid', $form_state['storage']['going']->gid)->fields(array(
 			'status' => exam_signup_going_OPEN,
 		))->execute();
+		cache_clear_all('going.'.$form_state['storage']['going']->gid, 'cache');
 		drupal_set_message(t('Going !cname in !place saved and opend.',	array(
 			'!cname'=>$form_state['storage']['going']->co->cname,
 			'!place'=>$form_state['storage']['going']->place->name,
@@ -2070,6 +2101,70 @@ function charge_form_cert_issue_massiveupload_form_validate(&$form, &$form_state
 	if(interface_exists('SaeInterface')) {
 		file_unmanaged_delete($uri);
 	}
+}
+
+function exam_user_signup_access() {
+	if(!student_load($GLOBALS['user'])) return FALSE;
+	return db_query('SELECT EXISTS(SELECT * FROM {goings} WHERE status=:status1 OR status=:status2)',
+		array(':status1'=>exam_signup_going_OPEN, ':status2'=>exam_signup_going_OPEN))
+		->fetchField();
+}
+
+function exam_user_signup() {
+	$header=array(
+		t('Organization'),
+		t('Certificate'),
+		t('Exam Place'),
+		t('Operation'),
+	);
+	$query=db_query('SELECT g.gid, o.name as oname, c.series, c.name as cname, p.name as pname FROM {goings} g '.
+		'INNER JOIN {certificates_operations} co ON g.coid=co.coid '.
+		'INNER JOIN {certificates} c ON co.cid=c.cid '.
+		'INNER JOIN {operations} o ON co.oid=o.oid '.
+		'INNER JOIN {places} p ON g.pid=p.pid '.
+		'WHERE g.status=:status1 OR g.status=:status2 ORDER BY co.coid, c.cid',
+		array(':status1'=>exam_signup_going_OPEN, ':status2'=>exam_signup_going_OPEN)
+	);
+	$rows=array();
+	foreach($query as $r) {
+		$rows[]=array(
+			$r->oname,
+			sprintf('%s %s', $r->series, $r->cname),
+			$r->pname,
+			exam_user_signup_form_access(going_load($r->gid))?l(t('Signup'), 'user/signup/'.$r->gid):t('Signup Requirements not satisfied'),
+		);
+	}
+	$output = theme('table', array('header'=>$header, 'rows'=>$rows));
+	return $output;
+}
+
+function exam_user_signup_form_access($going) {
+	if($going->status != exam_signup_going_OPEN && $going->status != exam_signup_going_ENDED) return FALSE;
+	$student=student_load($GLOBALS['user']);
+	if(!$student) return FALSE;
+	if(empty($going->requirements)) return TRUE;
+	foreach($going->requirements as $combine) {
+		foreach($combine as $cert) {
+			$i=db_query('SELECT EXISTS(SELECT * FROM {certificates_issues} ci INNER JOIN {certificates_operations} co ON co.coid=ci.coid WHERE co.cid=:cid AND ci.claimedby=:uid)',
+				array(':cid'=>$cert, ':uid'=>$student->uid)
+			)->fetchField();
+			if(!$i)
+				$i=db_query('SELECT EXISTS(SELECT * FROM {signup} s INNER JOIN {certificates_operations} co ON co.coid=s.coid WHERE co.cid=:cid AND s.uid=:uid AND s.result=:result)',
+					array(':cid'=>$cert, ':uid'=>$student->uid, ':result'=>exam_signup_result_PASSED)
+				)->fetchField();
+			if(!$i) break;
+		}
+		if($i==1 && $cert==$combine[count($combine)-1]) return TRUE;
+	}
+	return FALSE;
+}
+
+function exam_user_signup_form_title($going) {
+	return t('Sign Up for !going', array('!going'=>$going->co->cname));
+}
+
+function exam_user_signup_form($form, $form_state) {
+	return $form;
 }
 
 function exam_user_update($edit, $account, $category) {
