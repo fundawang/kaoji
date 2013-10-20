@@ -1588,7 +1588,7 @@ function exam_arrangement_form_add_going_submit($form, $form_state) {
 			'pid' => $form_state['values']['place']
 		))->execute();
 		$gid=db_query('SELECT gid FROM {goings} WHERE coid=:coid AND pid=:pid', array(':coid'=>$co->coid, ':pid'=>$form_state['values']['place']))->fetchField();
-		cache_clear_all('going.'.$gid, 'cache');
+		cache_clear_all('going:'.$gid, 'cache');
 	}
 	drupal_set_message(t('Going added.'));
 }
@@ -1618,7 +1618,7 @@ function _exam_going_status_to_text($status) {
 }
 
 function going_load($gid) {
-	$obj=cache_get('going.'.$gid);
+	$obj=cache_get('going:'.$gid);
 	if(!empty($obj->data)) return $obj->data;
 	$r=db_query('SELECT * FROM {goings} WHERE gid=:gid', array(':gid'=>$gid))->fetchObject();
 	if($r) {
@@ -1626,7 +1626,7 @@ function going_load($gid) {
 		$r->co=certificate_operations_load($r->coid);
 		$r->place=db_query('SELECT * FROM {places} WHERE pid=:pid', array(':pid'=>$r->pid))->fetchObject();
 	}
-	cache_set('going.'.$gid, $r);
+	cache_set('going:'.$gid, $r);
 	return $r;
 }
 

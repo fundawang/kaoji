@@ -429,7 +429,7 @@ function student_user_account_form_save($form, &$form_state) {
 				'picture' => $photoid
 			))->execute();
 			$obj=db_query('SELECT * FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid))->fetchObject();
-			cache_set('student.'.$user->uid, $obj);
+			cache_set('student:'.$user->uid, $obj);
 	}
 	if(empty($form_state['redirect']))
 		$form_state['redirect']=sprintf('user/%d', $user->uid);
@@ -618,10 +618,10 @@ function student_load($user) {
 	if(empty($user)) return FALSE;
 	if(!is_object($user)) $user=user_load($user);
 	if($user && $user->uid) {
-		$obj=cache_get('student.'.$user->uid);
+		$obj=cache_get('student:'.$user->uid);
 		if(empty($obj->data)) {
 			$obj=db_query('SELECT * FROM {students} WHERE uid=:uid',array(':uid'=>$user->uid))->fetchObject();
-			cache_set('student.'.$user->uid, $obj);
+			cache_set('student:'.$user->uid, $obj);
 		} else
 			$obj=$obj->data;
 		if(!$obj) return FALSE;
